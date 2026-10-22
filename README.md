@@ -1,4 +1,4 @@
-# LastMinute Meds
+# PharmFetch
 
 A hyperlocal medicine delivery marketplace connecting three independent parties — **customers**, **pharmacies**, and **delivery partners** — plus an **admin** dashboard for marketplace operations.
 
@@ -50,7 +50,7 @@ Demo auth is a shared PIN per role (`SHOP_PIN`, `PARTNER_PIN`, `ADMIN_PIN` env v
 | Tool | Role |
 | --- | --- |
 | Claude | `/api/extract` reads the prescription photo into a medicine list with confidence scores. `/api/instructions` rewords approved label text, and its output is rejected if it adds any number not in the approved text. |
-| n8n | Optional. The app posts stock requests and orders to an n8n webhook, which sends WhatsApp messages to shops. Shop replies come back through `/api/shops/reply`. Workflow: `n8n/lastminute-meds.workflow.json`. |
+| n8n | Optional. The app posts stock requests and orders to an n8n webhook, which sends WhatsApp messages to shops. Shop replies come back through `/api/shops/reply`. Workflow: `n8n/pharmfetch.workflow.json`. |
 | GitHub | Code, prompts and the prescription-only rule list (`lib/medicines.js`). CI (`.github/workflows/ci.yml`) runs the tests and the build on every push. |
 | Vercel | Hosts the Next.js app and API routes. |
 
@@ -75,7 +75,7 @@ Without `ANTHROPIC_API_KEY` typed medicine names still work; photo reading retur
 
 ## Connect n8n (optional)
 
-1. Import `n8n/lastminute-meds.workflow.json` into n8n.
+1. Import `n8n/pharmfetch.workflow.json` into n8n.
 2. Set n8n environment variables: `N8N_SHARED_SECRET`, `APP_URL` (your Vercel URL), `SHOP_PHONES` (JSON like `{"s1":"91XXXXXXXXXX"}`), `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TOKEN` (WhatsApp Cloud API).
 3. Activate the workflow. Copy the production URL of the **App event** webhook into Vercel as `N8N_WEBHOOK_URL`, and use the same `N8N_SHARED_SECRET` in Vercel.
 4. To let shops reply from WhatsApp, point your WhatsApp inbound handler at the **Shop reply** webhook with `{shopId, medicine, inStock, price}`.

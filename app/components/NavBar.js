@@ -20,7 +20,7 @@ export default function NavBar() {
               <path d="M4.93 4.93a10 10 0 1 1 0 14.14M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          LastMinute
+          PharmFetch
         </a>
         <nav className="nav-links">
           {LINKS.map((l) => <a key={l.href} href={l.href} className="nav-link">{l.label}</a>)}

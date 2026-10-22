@@ -2,14 +2,14 @@ import './globals.css';
 import NavBar from './components/NavBar.js';
 
 export const metadata = {
-  title: 'LastMinute Meds',
+  title: 'PharmFetch',
   description: 'AI reads your prescription and finds which nearby pharmacy has it in stock, with price, in seconds.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'LastMinute' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'PharmFetch' },
 };
 
 export const viewport = {
-  themeColor: '#0071e3',
+  themeColor: '#155E59',
   width: 'device-width',
   initialScale: 1,
 };

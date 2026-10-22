@@ -1,5 +1,5 @@
 {
-  "name": "LastMinute Meds - shop WhatsApp loop",
+  "name": "PharmFetch - shop WhatsApp loop",
   "nodes": [
     {
       "parameters": { "httpMethod": "POST", "path": "lmm-events", "options": {} },
