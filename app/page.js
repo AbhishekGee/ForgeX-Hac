@@ -1,6 +1,23 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG } from '../lib/catalog.js';
+import HeroArt from './components/HeroArt.js';
+import { IconBike, IconPackage, IconPharmacy, IconHome } from './components/icons.js';
+
+const TRACKER_STEPS = [
+  { key: 'pharmacy', label: 'Pharmacy', Icon: IconPharmacy },
+  { key: 'packed', label: 'Packed', Icon: IconPackage },
+  { key: 'onway', label: 'On the way', Icon: IconBike },
+  { key: 'delivered', label: 'Delivered', Icon: IconHome },
+];
+
+function trackerIndex(status) {
+  if (status === 'awaiting_shop') return 0;
+  if (status === 'accepted' || status === 'preparing' || status === 'ready_for_pickup') return 1;
+  if (status === 'out_for_delivery') return 2;
+  if (status === 'delivered') return 3;
+  return -1;
+}
 
 const ITEM_LABEL = {
   in_stock: (i) => ({ cls: 'ok', text: `In stock · ₹${i.subtotal ?? i.price}` }),
@@ -152,9 +169,11 @@ export default function Patient() {
   return (
     <>
       <section className="hero">
+        <div className="hero-art"><HeroArt /></div>
         <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
         <h1>Medicine, fast.</h1>
         <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
+        <span className="express-badge"><IconBike size={14} /> Express delivery</span>
       </section>
       <ol className="steps">
         {['Your medicine', 'Choose a pharmacy', 'Delivery'].map((s, i) => <li key={s} className={i === stepIdx ? 'on' : ''}>{s}</li>)}
@@ -242,7 +261,10 @@ export default function Patient() {
                   <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
                   <div className="muted">{s.distanceKm} km</div>
                 </div>
-                <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
+                  {s.open && <span className="express-badge"><IconBike size={12} /> Express</span>}
+                </div>
               </div>
               <ul className="items">
                 {s.items.map((i) => { const l = ITEM_LABEL[i.status](i); return <li key={i.key}><span>{i.display}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span className={'pill ' + l.cls}>{l.text}</span></li>; })}
@@ -262,6 +284,20 @@ export default function Patient() {
         <>
           <div className="card">
             <h2>{order.shopName}</h2>
+            {trackerIndex(order.status) >= 0 && (
+              <div className="tracker">
+                {TRACKER_STEPS.map((step, i) => {
+                  const cur = trackerIndex(order.status);
+                  const state = i < cur ? 'done' : i === cur ? 'active' : '';
+                  return (
+                    <div className={'tracker-step ' + state} key={step.key}>
+                      <div className="tracker-icon"><step.Icon size={18} /></div>
+                      <span className="tracker-label">{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <p><span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span></p>
             {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
               <p className="muted">Reason: {order.rejectionReason}</p>

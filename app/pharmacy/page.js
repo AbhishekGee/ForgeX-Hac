@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { IconPharmacy } from '../components/icons.js';
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : undefined);
@@ -55,7 +56,7 @@ export default function Pharmacy() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Pharmacy console</span>
+        <span className="eyebrow"><IconPharmacy size={14} /> Pharmacy console</span>
         <h1>Pharmacy.</h1>
         <p className="sub">Answer stock requests with one tap and confirm orders. Demo pharmacies only.</p>
       </section>

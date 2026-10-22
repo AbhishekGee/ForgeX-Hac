@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { IconBike } from '../components/icons.js';
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : undefined);
@@ -40,7 +41,7 @@ export default function Partner() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Delivery console</span>
+        <span className="eyebrow"><IconBike size={14} /> Delivery console</span>
         <h1>Delivery partner.</h1>
         <p className="sub">Accept nearby jobs and update delivery status. Demo riders only.</p>
       </section>
@@ -78,7 +79,9 @@ export default function Partner() {
                 <strong>{o.shopName}</strong>
                 <div className="muted">{o.items.map((i) => `${i.key}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ')} · ₹{o.total}</div>
                 <div className="row" style={{ marginTop: 6 }}>
-                  <span className={'pill ' + (o.status === 'delivered' ? 'ok' : o.status === 'failed_delivery' ? 'bad' : 'wait')}>{STATUS_LABEL[o.status]}</span>
+                  <span className={'pill ' + (o.status === 'delivered' ? 'ok' : o.status === 'failed_delivery' ? 'bad' : 'wait')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {o.status === 'out_for_delivery' && <IconBike size={12} />} {STATUS_LABEL[o.status]}
+                  </span>
                 </div>
                 <div className="row" style={{ marginTop: 6 }}>
                   {o.status === 'ready_for_pickup' && <button onClick={() => advance(o.id, 'out_for_delivery')} disabled={busy}>Confirm pickup</button>}
