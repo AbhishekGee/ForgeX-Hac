@@ -1,8 +1,30 @@
-# LastMinute Meds (MVP)
+# LastMinute Meds
 
-A patient photographs a prescription (or types medicine names) and sees which open nearby chemist has each medicine, with price. They order, the shop confirms the reservation, and the patient gets plain-language instructions.
+A hyperlocal medicine delivery marketplace connecting three independent parties — **customers**, **pharmacies**, and **delivery partners** — plus an **admin** dashboard for marketplace operations.
 
-Prototype. All shops are invented demo data. Not medical advice. Every prescription read must be checked by a pharmacist.
+A customer photographs a prescription (or types medicine names) and sees which open nearby pharmacy has each medicine, with price. They build a cart with quantities and order. The pharmacy confirms the reservation and packs it. A delivery partner accepts the job and updates delivery status. The customer sees live status (including the rider's name) and gets plain-language instructions. Admins see marketplace-wide metrics and every order, pharmacy and rider.
+
+Prototype for a hackathon demo. All pharmacies, riders and orders are invented demo data. Not medical advice. Every prescription read must be checked by a pharmacist.
+
+## The four interfaces
+
+| Route | Role | What it does |
+| --- | --- | --- |
+| `/` | Customer | Search medicines (text or prescription photo), build a cart with quantities, pick a pharmacy, track delivery, get instructions. |
+| `/pharmacy` | Pharmacy | Answer stock requests, confirm/cancel orders, manage inventory, clear the pharmacist review queue. `/shop` redirects here. |
+| `/partner` | Delivery partner | See available (reserved, unassigned) deliveries, accept one, mark picked up / delivered. |
+| `/admin` | Admin | Marketplace metrics (orders, revenue, pharmacy/partner counts, pending reviews), recent orders, pharmacy and rider rosters. |
+
+## Demo: the full order lifecycle
+
+1. Open `/` (customer). Type `Paracetamol`, continue, bump the quantity in the cart, then **Find pharmacies**.
+2. Pick an open pharmacy with everything in stock — **Order from this pharmacy**. The order starts `awaiting_shop`.
+3. Open `/pharmacy` in another tab (or browser profile). Pick the same pharmacy shown on the order and click **Confirm reserved**.
+4. Open `/partner` in a third tab. The order now appears under **Available jobs** — click **Accept delivery**, then **Picked up, out for delivery**, then **Mark delivered**.
+5. Back on `/`, the customer's order auto-updates (polls every 4s) through to **Delivered**, showing the rider's name.
+6. Open `/admin` to see the order counted in total orders, delivered revenue, and the "Orders by status" / "Recent orders" lists.
+
+Demo auth is a shared PIN per role (`SHOP_PIN`, `PARTNER_PIN`, `ADMIN_PIN` env vars) — leave them unset locally and every role is open with no PIN prompt, which is the easiest way to run the demo above.
 
 ## What does what
 
@@ -29,10 +51,8 @@ Without `ANTHROPIC_API_KEY` typed medicine names still work; photo reading retur
 1. Push this folder to a new GitHub repository.
 2. In Vercel choose **Add New, Project** and import the repo. Framework is detected as Next.js.
 3. In the project, add the **Upstash Redis** integration (Storage tab). It sets the `UPSTASH_REDIS_REST_*` or `KV_REST_API_*` variables the app reads. Shared state is needed: Vercel functions do not share memory, so without it shop replies will not reach the patient page.
-4. Add environment variables: `ANTHROPIC_API_KEY`, optionally `CLAUDE_MODEL`, `SHOP_PIN`.
+4. Add environment variables: `ANTHROPIC_API_KEY`, optionally `CLAUDE_MODEL`, `SHOP_PIN`, `PARTNER_PIN`, `ADMIN_PIN`.
 5. Redeploy. Open `/api/health` to confirm `store: "redis"` and `claude: true`.
-
-Pages: `/` is the patient flow, `/shop` is the shopkeeper page (pick a shop, answer requests, confirm orders).
 
 ## Connect n8n (optional)
 
@@ -54,6 +74,7 @@ The workflow JSON has not been run against a live n8n or WhatsApp account. Check
 ## Known limits
 
 - State is one JSON blob with read-modify-write, fine for a demo, not for traffic.
-- `SHOP_PIN` is a single shared PIN, not real accounts.
-- No payments, no rider dispatch (the shop delivers), no live location (distances use a fixed demo point).
+- `SHOP_PIN`/`PARTNER_PIN`/`ADMIN_PIN` are single shared PINs per role, not real accounts or sessions.
+- No payments (cash on delivery, demo only), no live location (distances use a fixed demo point), no real pharmacy/rider onboarding.
 - Demo drug lists are short and not clinically reviewed.
+- The pharmacist review queue is "mark checked" only — it does not yet notify the patient of the outcome.

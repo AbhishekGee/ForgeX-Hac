@@ -7,29 +7,34 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   const body = await req.json().catch(() => ({}));
-  const keys = (body.keys || []).map(String).slice(0, 10);
+  const rawItems = Array.isArray(body.items) ? body.items : (body.keys || []).map((k) => ({ key: k, qty: 1 }));
+  const reqItems = rawItems
+    .map((it) => ({ key: String(it.key ?? it), qty: Math.max(1, Math.min(20, Number(it.qty) || 1)) }))
+    .slice(0, 10);
   const hasPrescription = Boolean(body.hasPrescription);
-  if (!body.shopId || !keys.length) return Response.json({ error: 'shopId and keys are required.' }, { status: 400 });
+  if (!body.shopId || !reqItems.length) return Response.json({ error: 'shopId and items are required.' }, { status: 400 });
 
   const result = await update((s) => {
     const shop = s.shops[body.shopId];
     if (!shop) return { status: 404, error: 'Unknown shop.' };
     if (!isOpen(shop)) return { status: 409, error: 'This shop has just closed. Pick another.' };
     const items = [];
-    for (const key of keys) {
+    for (const { key, qty } of reqItems) {
       if (classify(key, hasPrescription) !== 'ok') return { status: 422, error: 'An item in this order cannot be sold through the app.' };
       const e = shop.stock[key];
       if (!e?.inStock) return { status: 409, error: `${key} is no longer confirmed in stock. Search again.` };
-      items.push({ key, price: e.price });
+      items.push({ key, qty, price: e.price });
     }
     const order = {
       id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       shopId: shop.id,
       shopName: shop.name,
       items,
-      total: items.reduce((n, i) => n + i.price, 0),
+      total: items.reduce((n, i) => n + i.price * i.qty, 0),
       hasPrescription,
       status: 'awaiting_shop',
+      partnerId: null,
+      partnerName: null,
       createdAt: Date.now(),
     };
     s.orders[order.id] = order;
