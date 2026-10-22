@@ -8,6 +8,13 @@ async function fetchAdmin(pin) {
   return data;
 }
 
+async function resetDemo(pin) {
+  const res = await fetch('/api/admin/reset', { method: 'POST', headers: pin ? { 'x-admin-pin': pin } : {} });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
+}
+
 const STATUS_LABEL = {
   awaiting_shop: 'Awaiting pharmacy', accepted: 'Accepted', preparing: 'Preparing', ready_for_pickup: 'Ready for pickup',
   out_for_delivery: 'Out for delivery', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled', failed_delivery: 'Delivery failed',
@@ -18,6 +25,7 @@ export default function Admin() {
   const [unlocked, setUnlocked] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
 
   async function load(p) {
     setError('');
@@ -26,6 +34,11 @@ export default function Admin() {
       setData(d);
       setUnlocked(true);
     } catch (e) { setError(e.message); }
+  }
+
+  async function doReset() {
+    setError('');
+    try { await resetDemo(pin); setConfirmReset(false); await load(pin); } catch (e) { setError(e.message); }
   }
 
   useEffect(() => { load(''); }, []);
@@ -54,6 +67,19 @@ export default function Admin() {
 
       {unlocked && data && (
         <>
+          <div className="card">
+            <div className="shop">
+              <h2>Demo controls</h2>
+              {!confirmReset
+                ? <button className="ghost" onClick={() => setConfirmReset(true)}>Reset demo data</button>
+                : <div className="row" style={{ margin: 0 }}>
+                    <span className="muted">Clear all orders and restore fixtures?</span>
+                    <button className="warn" onClick={doReset}>Confirm reset</button>
+                    <button className="ghost" onClick={() => setConfirmReset(false)}>Cancel</button>
+                  </div>}
+            </div>
+          </div>
+
           <div className="metric-grid">
             <div className="metric"><span className="metric-val">{data.metrics.totalOrders}</span><span className="metric-label">Total orders</span></div>
             <div className="metric"><span className="metric-val">₹{data.metrics.grossOrderValue}</span><span className="metric-label">Gross order value</span></div>
