@@ -1,0 +1,37 @@
+import { normalise, classify } from '../../../lib/medicines.js';
+import { rankShops, queueRequests } from '../../../lib/search.js';
+import { update, getState } from '../../../lib/store.js';
+import { notify } from '../../../lib/n8n.js';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req) {
+  const body = await req.json().catch(() => ({}));
+  const names = (body.medicines || []).map((m) => String(m).slice(0, 80)).filter(Boolean).slice(0, 10);
+  if (!names.length) return Response.json({ error: 'Add at least one medicine.' }, { status: 400 });
+
+  const seen = new Set();
+  const items = [];
+  for (const display of names) {
+    const key = normalise(display);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push({ key, display });
+  }
+  const hasPrescription = Boolean(body.hasPrescription);
+  const opts = { hasPrescription, lat: body.lat, lng: body.lng };
+
+  let added = [];
+  await update((s) => {
+    added = queueRequests(s, items, opts);
+  });
+  if (added.length) await notify('stock_request', { requests: added, medicines: items });
+
+  const state = await getState();
+  return Response.json({
+    shops: rankShops(state, items, opts),
+    blocked: items.filter((i) => classify(i.key, hasPrescription) === 'blocked').map((i) => i.display),
+    needsPrescription: items.filter((i) => classify(i.key, hasPrescription) === 'needs_rx').map((i) => i.display),
+    asked: added.length,
+  });
+}

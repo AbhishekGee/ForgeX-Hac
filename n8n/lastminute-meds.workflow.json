@@ -1,0 +1,95 @@
+{
+  "name": "LastMinute Meds - shop WhatsApp loop",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "lmm-events", "options": {} },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "App event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "lmm-events"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.headers['x-webhook-secret'] }}",
+              "rightValue": "={{ $env.N8N_SHARED_SECRET }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Secret matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turn an app event into one WhatsApp message per shop.\n// Set SHOP_PHONES in n8n as JSON, e.g. {\"s1\":\"91XXXXXXXXXX\"}.\nconst phones = JSON.parse($env.SHOP_PHONES || '{}');\nconst body = $input.first().json.body;\nconst out = [];\nif (body.type === 'stock_request') {\n  const byShop = {};\n  for (const r of body.requests) (byShop[r.shopId] ||= []).push(r.key);\n  for (const [shopId, keys] of Object.entries(byShop)) {\n    out.push({ json: { to: phones[shopId], text: `Customer nearby is asking: ${keys.join(', ')}. Open ${$env.APP_URL}/shop to reply with stock and price.` } });\n  }\n} else if (body.type === 'order') {\n  const o = body.order;\n  out.push({ json: { to: phones[o.shopId], text: `New order ${o.id}: ${o.items.map(i => i.key).join(', ')} (Rs ${o.total}). Open ${$env.APP_URL}/shop to confirm.` } });\n}\nreturn out.filter(i => i.json.to);"
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Build WhatsApp messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_TOKEN }}" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $json.to, type: 'text', text: { body: $json.text } } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Send WhatsApp (Cloud API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, -80]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "lmm-shop-reply", "options": {} },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Shop reply (from WhatsApp)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 260],
+      "webhookId": "lmm-shop-reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_URL }}/api/shops/reply",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "x-webhook-secret", "value": "={{ $env.N8N_SHARED_SECRET }}" } ] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { shopId: $json.body.shopId, medicine: $json.body.medicine, inStock: $json.body.inStock, price: $json.body.price } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Post reply to app",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 260]
+    }
+  ],
+  "connections": {
+    "App event": { "main": [[{ "node": "Secret matches?", "type": "main", "index": 0 }]] },
+    "Secret matches?": { "main": [[{ "node": "Build WhatsApp messages", "type": "main", "index": 0 }], []] },
+    "Build WhatsApp messages": { "main": [[{ "node": "Send WhatsApp (Cloud API)", "type": "main", "index": 0 }]] },
+    "Shop reply (from WhatsApp)": { "main": [[{ "node": "Post reply to app", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
