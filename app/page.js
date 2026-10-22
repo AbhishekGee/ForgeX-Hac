@@ -169,7 +169,7 @@ export default function Patient() {
   return (
     <>
       <section className="hero">
-        <div className="hero-art"><HeroArt /></div>
+        <div className="hero-banner"><HeroArt /></div>
         <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
         <h1>Medicine, fast.</h1>
         <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>

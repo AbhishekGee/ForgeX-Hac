@@ -225,8 +225,15 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
 .metric-val { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
 .metric-label { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.03em; }
 
-.hero-art { display: flex; justify-content: center; margin-bottom: 4px; }
-.hero-art svg { animation: riseIn .6s var(--ease); }
+.hero-banner {
+  background: var(--sage);
+  border-radius: 28px;
+  padding: 20px 16px 0;
+  margin-bottom: 20px;
+  overflow: hidden;
+  animation: riseIn .6s var(--ease);
+}
+.hero-banner svg { display: block; width: 100%; height: auto; }
 
 .express-badge {
   display: inline-flex;
