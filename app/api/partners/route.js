@@ -19,7 +19,7 @@ export async function GET(req) {
     id: partner.id,
     name: partner.name,
     available: orders
-      .filter((o) => o.status === 'reserved' && !o.partnerId)
+      .filter((o) => o.status === 'ready_for_pickup' && !o.partnerId)
       .sort((a, b) => a.createdAt - b.createdAt),
     mine: orders
       .filter((o) => o.partnerId === id)
@@ -36,11 +36,12 @@ export async function POST(req) {
     const order = s.orders[orderId];
     const partner = s.partners[partnerId];
     if (!order || !partner) return { status: 404, error: 'Unknown order or delivery partner.' };
-    if (order.status !== 'reserved') return { status: 409, error: 'This order is not ready for pickup.' };
+    if (order.status !== 'ready_for_pickup') return { status: 409, error: 'This order is not ready for pickup.' };
     if (order.partnerId) return { status: 409, error: 'Already accepted by another partner.' };
     order.partnerId = partner.id;
     order.partnerName = partner.name;
     order.updatedAt = Date.now();
+    order.history.push({ status: 'partner_assigned', at: order.updatedAt, note: partner.name });
     return { status: 200, order };
   });
   if (result.error) return Response.json({ error: result.error }, { status: result.status });

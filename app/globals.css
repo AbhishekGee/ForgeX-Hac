@@ -1,49 +1,54 @@
 :root {
-  --bg: #ffffff;
-  --surface: #fbfbfd;
+  /* LastMinute Meds brand: forest teal, muted sage, warm off-white */
+  --bg: #f8f7f2;
+  --surface: #edf5f0;
+  --sage: #dce9e2;
   --card: #ffffff;
-  --ink: #1d1d1f;
-  --mute: #6e6e73;
-  --mute-2: #86868b;
-  --line: #d2d2d7;
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-soft: rgba(0, 113, 227, 0.1);
-  --focus-ring: rgba(0, 113, 227, 0.15);
-  --nav-bg: rgba(255, 255, 255, 0.72);
-  --green: #0a8754;
-  --green-bg: #e9f9ef;
-  --amber: #a85c00;
-  --amber-bg: #fff3dc;
-  --red: #d70015;
-  --red-bg: #ffe9e9;
-  --radius-lg: 22px;
-  --radius-md: 14px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 10px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.1);
+  --ink: #202b29;
+  --mute: #687672;
+  --mute-2: #8a948f;
+  --line: #e3e8e3;
+  --accent: #155e59;
+  --accent-hover: #104541;
+  --accent-secondary: #287c72;
+  --accent-soft: rgba(21, 94, 89, 0.08);
+  --focus-ring: rgba(21, 94, 89, 0.18);
+  --nav-bg: rgba(248, 247, 242, 0.78);
+  --green: #287c52;
+  --green-bg: #e3f2e9;
+  --amber: #a96b19;
+  --amber-bg: #faf0dd;
+  --red: #b83d42;
+  --red-bg: #fbe9ea;
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --shadow-sm: 0 1px 2px rgba(32, 43, 41, 0.04), 0 2px 10px rgba(32, 43, 41, 0.04);
+  --shadow-md: 0 12px 36px rgba(32, 43, 41, 0.1);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --surface: #000000;
-    --card: #1c1c1e;
-    --ink: #f5f5f7;
-    --mute: #98989d;
-    --mute-2: #6e6e73;
-    --line: #38383a;
-    --accent: #2997ff;
-    --accent-hover: #47a4ff;
-    --accent-soft: rgba(41, 151, 255, 0.16);
-    --focus-ring: rgba(41, 151, 255, 0.25);
-    --nav-bg: rgba(0, 0, 0, 0.72);
-    --green: #30d158;
-    --green-bg: #0d2818;
-    --amber: #ffd60a;
-    --amber-bg: #2e2205;
-    --red: #ff453a;
-    --red-bg: #330b0b;
+    --bg: #0e1513;
+    --surface: #131c19;
+    --sage: #1a2521;
+    --card: #182420;
+    --ink: #eef2ef;
+    --mute: #9bada4;
+    --mute-2: #71827b;
+    --line: #28352f;
+    --accent: #3fa89c;
+    --accent-hover: #57bcae;
+    --accent-secondary: #4a9b8e;
+    --accent-soft: rgba(63, 168, 156, 0.16);
+    --focus-ring: rgba(63, 168, 156, 0.25);
+    --nav-bg: rgba(14, 21, 19, 0.78);
+    --green: #4fbd82;
+    --green-bg: #112a1c;
+    --amber: #e0ab5a;
+    --amber-bg: #2e2510;
+    --red: #e3747a;
+    --red-bg: #321416;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-md: 0 14px 50px rgba(0, 0, 0, 0.65);
   }
@@ -219,6 +224,31 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
 .metric { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 4px; animation: riseIn .45s var(--ease); }
 .metric-val { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
 .metric-label { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.03em; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 980px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .2s var(--ease), background .2s var(--ease);
+}
+.chip:hover { border-color: var(--accent-secondary); background: var(--sage); }
+.chip .rx { color: var(--amber); font-size: 11px; font-weight: 700; }
+
+.verify-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--accent-secondary); background: var(--accent-soft); padding: 3px 9px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.product-detail { background: var(--sage); border-radius: var(--radius-md); padding: 14px; margin: 10px 0; font-size: 14px; }
+.product-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.product-detail dt { color: var(--mute); }
+.product-detail dd { margin: 0; font-weight: 600; }
 
 button {
   font: inherit;

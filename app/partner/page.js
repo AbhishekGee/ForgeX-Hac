@@ -8,7 +8,7 @@ async function api(path, body) {
   return data;
 }
 
-const NEXT = { reserved: ['out_for_delivery', 'Picked up, out for delivery'], out_for_delivery: ['delivered', 'Mark delivered'] };
+const STATUS_LABEL = { ready_for_pickup: 'Assigned, ready for pickup', out_for_delivery: 'Out for delivery', delivered: 'Delivered', failed_delivery: 'Delivery failed' };
 
 export default function Partner() {
   const [meta, setMeta] = useState(null);
@@ -35,6 +35,7 @@ export default function Partner() {
   }
 
   if (!meta) return <p className="muted">Loading… {error}</p>;
+  const partnerMeta = meta.partners.find((p) => p.id === partnerId);
 
   return (
     <>
@@ -50,13 +51,14 @@ export default function Partner() {
           {meta.partners.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.vehicle}</option>)}
         </select>
         {meta.pinRequired && (<><label htmlFor="pin" style={{ marginTop: 8 }}>PIN</label><input id="pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} /></>)}
+        {partnerMeta && <p className="muted">{partnerMeta.verified ? 'Verified rider' : 'Verification pending'}</p>}
       </div>
 
       {data && (
         <>
           <div className="card">
             <h2>Available jobs</h2>
-            {data.available.length === 0 && <p className="muted">No reserved orders waiting for pickup right now.</p>}
+            {data.available.length === 0 && <p className="muted">No orders ready for pickup right now.</p>}
             {data.available.map((o) => (
               <div key={o.id} style={{ borderTop: '1px solid var(--line)', padding: '10px 0' }}>
                 <strong>{o.shopName}</strong>
@@ -76,8 +78,14 @@ export default function Partner() {
                 <strong>{o.shopName}</strong>
                 <div className="muted">{o.items.map((i) => `${i.key}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ')} · ₹{o.total}</div>
                 <div className="row" style={{ marginTop: 6 }}>
-                  <span className={'pill ' + (o.status === 'delivered' ? 'ok' : 'wait')}>{o.status.replace(/_/g, ' ')}</span>
-                  {NEXT[o.status] && <button onClick={() => advance(o.id, NEXT[o.status][0])} disabled={busy}>{NEXT[o.status][1]}</button>}
+                  <span className={'pill ' + (o.status === 'delivered' ? 'ok' : o.status === 'failed_delivery' ? 'bad' : 'wait')}>{STATUS_LABEL[o.status]}</span>
+                </div>
+                <div className="row" style={{ marginTop: 6 }}>
+                  {o.status === 'ready_for_pickup' && <button onClick={() => advance(o.id, 'out_for_delivery')} disabled={busy}>Confirm pickup</button>}
+                  {o.status === 'out_for_delivery' && <>
+                    <button onClick={() => advance(o.id, 'delivered')} disabled={busy}>Mark delivered</button>
+                    <button className="warn" onClick={() => advance(o.id, 'failed_delivery')} disabled={busy}>Report failed delivery</button>
+                  </>}
                 </div>
               </div>
             ))}

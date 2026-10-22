@@ -2,6 +2,7 @@ import { update, getState } from '../../../lib/store.js';
 import { classify } from '../../../lib/medicines.js';
 import { isOpen } from '../../../lib/shops.js';
 import { notify } from '../../../lib/n8n.js';
+import { newOrder } from '../../../lib/orders.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,18 +26,14 @@ export async function POST(req) {
       if (!e?.inStock) return { status: 409, error: `${key} is no longer confirmed in stock. Search again.` };
       items.push({ key, qty, price: e.price });
     }
-    const order = {
+    const order = newOrder({
       id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       shopId: shop.id,
       shopName: shop.name,
       items,
-      total: items.reduce((n, i) => n + i.price * i.qty, 0),
       hasPrescription,
-      status: 'awaiting_shop',
-      partnerId: null,
-      partnerName: null,
-      createdAt: Date.now(),
-    };
+      total: items.reduce((n, i) => n + i.price * i.qty, 0),
+    });
     s.orders[order.id] = order;
     return { status: 200, order };
   });

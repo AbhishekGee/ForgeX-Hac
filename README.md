@@ -15,16 +15,35 @@ Prototype for a hackathon demo. All pharmacies, riders and orders are invented d
 | `/partner` | Delivery partner | See available (reserved, unassigned) deliveries, accept one, mark picked up / delivered. |
 | `/admin` | Admin | Marketplace metrics (orders, revenue, pharmacy/partner counts, pending reviews), recent orders, pharmacy and rider rosters. |
 
-## Demo: the full order lifecycle
+## Order states
 
-1. Open `/` (customer). Type `Paracetamol`, continue, bump the quantity in the cart, then **Find pharmacies**.
-2. Pick an open pharmacy with everything in stock — **Order from this pharmacy**. The order starts `awaiting_shop`.
-3. Open `/pharmacy` in another tab (or browser profile). Pick the same pharmacy shown on the order and click **Confirm reserved**.
-4. Open `/partner` in a third tab. The order now appears under **Available jobs** — click **Accept delivery**, then **Picked up, out for delivery**, then **Mark delivered**.
-5. Back on `/`, the customer's order auto-updates (polls every 4s) through to **Delivered**, showing the rider's name.
-6. Open `/admin` to see the order counted in total orders, delivered revenue, and the "Orders by status" / "Recent orders" lists.
+`awaiting_shop → accepted → preparing → ready_for_pickup → out_for_delivery → delivered`, with `rejected` (from `awaiting_shop`, pharmacy declines with a reason), `cancelled` (pharmacy cancels after accepting) and `failed_delivery` (partner reports a failed attempt) as terminal side-branches. Every transition is enforced centrally in `lib/orders.js` — invalid jumps (e.g. `awaiting_shop → delivered`) are rejected, and a full timestamped history is kept on the order and shown on the customer's tracking page.
 
-Demo auth is a shared PIN per role (`SHOP_PIN`, `PARTNER_PIN`, `ADMIN_PIN` env vars) — leave them unset locally and every role is open with no PIN prompt, which is the easiest way to run the demo above.
+Prescription-required medicines (`RX_ONLY` in `lib/medicines.js`) additionally carry an `order.prescriptionStatus` (`not_required` / `pending` / `approved` / `rejected`), set when the order is placed. A pharmacy cannot mark a `pending` order as `preparing` until it approves the prescription; rejecting it immediately cancels the order.
+
+## Demo: Scenario A — standard order
+
+1. Open `/` (customer). Use a "Frequently searched" chip (e.g. Paracetamol) or type a name, continue, bump the quantity in the cart, then **Find pharmacies**.
+2. Pick an open, verified pharmacy with everything in stock — **Order from this pharmacy**.
+3. Open `/pharmacy` in another tab. Pick the same pharmacy and **Accept order**, then **Mark preparing**, then **Ready for pickup**.
+4. Open `/partner` in a third tab. The order appears under **Available jobs** — **Accept delivery**, then **Confirm pickup**, then **Mark delivered**.
+5. Back on `/`, the customer's order auto-updates (polls every 4s) through the full timeline to **Delivered**, with the rider's name.
+6. Open `/admin` to see the order counted in total orders, gross order value, platform revenue, and delivery completion rate.
+
+## Demo: Scenario B — prescription-required order
+
+1. On `/pharmacy`, switch to **City Care Pharmacy (demo)** — the only seeded pharmacy stocking Azithromycin (prescription-required).
+2. As a customer, add Azithromycin from "Frequently searched" (note its `Rx` badge) with a prescription photo attached, and order it from City Care Pharmacy.
+3. On `/pharmacy`, **Accept order** — note **Mark preparing** is unavailable until the prescription is reviewed.
+4. Click **Approve prescription** — preparing is now unblocked. (Click **Reject prescription** instead on a second test order to see it immediately move to `rejected` with the fulfilment path blocked for good.)
+
+## Demo: Scenario C — failure handling
+
+- **Pharmacy rejection with reason**: on an `awaiting_shop` order, click **Reject** and pick a reason (Out of stock, Store closing, …) — it shows on the customer's order and in the admin's "Rejected orders" list.
+- **Duplicate delivery acceptance**: have two delivery-partner tabs open on the same `ready_for_pickup` order; the second **Accept delivery** click is rejected server-side ("Already accepted by another partner").
+- **Invalid transition**: any out-of-order status request (e.g. skipping straight to `delivered`) is rejected by the central state machine with a clear error.
+
+Demo auth is a shared PIN per role (`SHOP_PIN`, `PARTNER_PIN`, `ADMIN_PIN` env vars) — leave them unset locally and every role is open with no PIN prompt, which is the easiest way to run the demos above.
 
 ## What does what
 
@@ -66,15 +85,19 @@ The workflow JSON has not been run against a live n8n or WhatsApp account. Check
 ## Safety rules (in code)
 
 - Controlled drugs (`CONTROLLED` in `lib/medicines.js`) are never offered.
-- Prescription-only drugs (`RX_ONLY`) are offered only with a prescription photo.
-- Unknown stock is shown as "waiting", never as in stock. A shop must confirm before an order is allowed, and the server re-checks stock and opening hours when the order is placed.
-- Low-confidence reads go to the pharmacist review queue on `/shop`.
+- Prescription-only drugs (`RX_ONLY`) are offered only with a prescription photo, and the resulting order cannot be prepared until a pharmacist approves it (`lib/orders.js`); rejecting it cancels the order outright.
+- Unknown stock is shown as "waiting", never as in stock. A pharmacy must confirm before an order is allowed, and the server re-checks stock and opening hours when the order is placed.
+- Low-confidence OCR reads go to the pharmacist review queue on `/pharmacy` (separate from the per-order prescription-approval gate above).
 - Instruction text is demo text with no dose numbers. Replace `APPROVED_INFO` with pharmacist-approved label text before real use.
+- A delivery can only be accepted by one partner, enforced atomically server-side in `/api/partners`, and a partner can only advance an order assigned to them.
 
 ## Known limits
 
 - State is one JSON blob with read-modify-write, fine for a demo, not for traffic.
 - `SHOP_PIN`/`PARTNER_PIN`/`ADMIN_PIN` are single shared PINs per role, not real accounts or sessions.
-- No payments (cash on delivery, demo only), no live location (distances use a fixed demo point), no real pharmacy/rider onboarding.
-- Demo drug lists are short and not clinically reviewed.
-- The pharmacist review queue is "mark checked" only — it does not yet notify the patient of the outcome.
+- No payments (cash on delivery, demo only), no live location (distances use a fixed demo point), no real pharmacy/rider onboarding beyond the demo licence/verification fields.
+- Stock is boolean in/out per pharmacy, not a quantity count, so "prevent checkout past confirmed quantity" is enforced at the in-stock/out-of-stock level, not a numeric inventory count.
+- Demo drug lists are short and not clinically reviewed. Pharmacy/pharmacist licence numbers are invented.
+- No real payment capture exists, so refund states are not implemented — only order cancellation.
+- No bottom tab bar / native-app chrome on mobile; navigation is a responsive hamburger menu plus the existing step indicator.
+- No service worker/offline support — the manifest and icon make the app installable, not offline-capable.

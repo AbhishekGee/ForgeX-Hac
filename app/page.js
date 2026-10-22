@@ -1,19 +1,41 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { CATALOG } from '../lib/catalog.js';
 
 const ITEM_LABEL = {
   in_stock: (i) => ({ cls: 'ok', text: `In stock · ₹${i.subtotal ?? i.price}` }),
   out: () => ({ cls: 'bad', text: 'Not available' }),
-  unknown: () => ({ cls: 'wait', text: 'Asked the shop, waiting' }),
+  unknown: () => ({ cls: 'wait', text: 'Asked the pharmacy, waiting' }),
   needs_rx: () => ({ cls: 'bad', text: 'Needs a prescription photo' }),
   blocked: () => ({ cls: 'bad', text: 'Not sold through this app' }),
 };
 const ORDER_LABEL = {
-  awaiting_shop: 'Waiting for the pharmacy to confirm your reservation',
-  reserved: 'Reserved. The pharmacy is packing your order',
+  awaiting_shop: 'Waiting for the pharmacy to confirm your order',
+  accepted: 'Accepted. The pharmacy is checking everything is ready',
+  preparing: 'Preparing your order',
+  ready_for_pickup: 'Ready. Waiting for a delivery partner',
   out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
-  cancelled: 'The pharmacy could not fulfil this order. Please search again',
+  rejected: 'The pharmacy could not accept this order',
+  cancelled: 'This order was cancelled',
+  failed_delivery: 'The delivery attempt failed',
+};
+const ORDER_PILL = {
+  delivered: 'ok', rejected: 'bad', cancelled: 'bad', failed_delivery: 'bad', awaiting_shop: 'wait',
+};
+const HISTORY_LABEL = {
+  awaiting_shop: 'Order placed',
+  accepted: 'Pharmacy accepted',
+  preparing: 'Preparing',
+  ready_for_pickup: 'Ready for pickup',
+  partner_assigned: 'Delivery partner assigned',
+  out_for_delivery: 'Picked up, out for delivery',
+  delivered: 'Delivered',
+  rejected: 'Rejected',
+  cancelled: 'Cancelled',
+  failed_delivery: 'Delivery failed',
+  prescription_approved: 'Prescription approved',
+  prescription_rejected: 'Prescription rejected',
 };
 
 function downscale(file) {
@@ -52,6 +74,7 @@ export default function Patient() {
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [openProduct, setOpenProduct] = useState(null);
   const fileRef = useRef(null);
   const hasRx = Boolean(image);
 
@@ -65,6 +88,12 @@ export default function Patient() {
       setStage('confirm');
     } catch (e) { setError(e.message); }
     setBusy(false);
+  }
+
+  function addFromCatalog(p) {
+    setMeds([...meds, { name: `${p.name} ${p.strength}`, confidence: 1, qty: 1 }]);
+    setOpenProduct(null);
+    setStage('confirm');
   }
 
   async function search() {
@@ -123,7 +152,7 @@ export default function Patient() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">AI-powered search</span>
+        <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
         <h1>Medicine, fast.</h1>
         <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
       </section>
@@ -133,18 +162,48 @@ export default function Patient() {
       {error && <div className="err">{error}</div>}
 
       {stage === 'input' && (
-        <div className="card">
-          <label htmlFor="meds">Type medicine names (comma or new line)</label>
-          <textarea id="meds" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paracetamol 500, ORS" disabled={Boolean(image)} />
-          <p className="muted">or photograph your prescription</p>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pick} hidden />
-          <div className="row">
-            <button className="ghost" onClick={() => fileRef.current.click()}>{image ? 'Retake photo' : 'Take or choose photo'}</button>
-            {image && <button className="ghost" onClick={() => setImage(null)}>Remove</button>}
+        <>
+          <div className="card">
+            <label htmlFor="meds">Type medicine names (comma or new line)</label>
+            <textarea id="meds" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paracetamol 500, ORS" disabled={Boolean(image)} />
+            <p className="muted">or photograph your prescription</p>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pick} hidden />
+            <div className="row">
+              <button className="ghost" onClick={() => fileRef.current.click()}>{image ? 'Retake photo' : 'Take or choose photo'}</button>
+              {image && <button className="ghost" onClick={() => setImage(null)}>Remove</button>}
+            </div>
+            {image && <img src={image} alt="Your prescription" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginBottom: 8 }} />}
+            <button onClick={read} disabled={busy || (!image && !text.trim())}>{busy ? 'Reading…' : 'Continue'}</button>
           </div>
-          {image && <img src={image} alt="Your prescription" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginBottom: 8 }} />}
-          <button onClick={read} disabled={busy || (!image && !text.trim())}>{busy ? 'Reading…' : 'Continue'}</button>
-        </div>
+
+          <div className="card">
+            <h2>Frequently searched</h2>
+            <div className="chip-row">
+              {CATALOG.map((p) => (
+                <button key={p.key} type="button" className="chip" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
+                  {p.name} {p.strength}{p.prescriptionRequired && <span className="rx">· Rx</span>}
+                </button>
+              ))}
+            </div>
+            {openProduct && (() => {
+              const p = CATALOG.find((x) => x.key === openProduct);
+              return (
+                <div className="product-detail">
+                  <dl>
+                    <dt>Brand</dt><dd>{p.brand}</dd>
+                    <dt>Form</dt><dd>{p.form}</dd>
+                    <dt>Pack size</dt><dd>{p.packSize}</dd>
+                    <dt>Category</dt><dd>{p.category}</dd>
+                    <dt>Prescription</dt><dd>{p.prescriptionRequired ? 'Required — add a photo first' : 'Not required'}</dd>
+                  </dl>
+                  <div className="row" style={{ marginTop: 12, marginBottom: 0 }}>
+                    <button onClick={() => addFromCatalog(p)}>Add to cart</button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </>
       )}
 
       {stage === 'confirm' && (
@@ -180,7 +239,7 @@ export default function Patient() {
             <div className="card" key={s.id}>
               <div className="shop">
                 <div>
-                  <strong>{s.name}</strong>
+                  <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
                   <div className="muted">{s.distanceKm} km</div>
                 </div>
                 <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
@@ -203,13 +262,27 @@ export default function Patient() {
         <>
           <div className="card">
             <h2>{order.shopName}</h2>
-            <p><span className={'pill ' + (order.status === 'cancelled' ? 'bad' : order.status === 'awaiting_shop' ? 'wait' : 'ok')}>{ORDER_LABEL[order.status]}</span></p>
-            {order.partnerName && (order.status === 'out_for_delivery' || order.status === 'delivered') && (
+            <p><span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span></p>
+            {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
+              <p className="muted">Reason: {order.rejectionReason}</p>
+            )}
+            {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
+            {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
               <p className="muted">Rider: {order.partnerName}</p>
             )}
             <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
             <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
           </div>
+
+          <div className="card">
+            <h2>Order timeline</h2>
+            <ul className="items">
+              {order.history.map((h, i) => (
+                <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
+              ))}
+            </ul>
+          </div>
+
           {info && (
             <div className="card">
               <div className="shop"><h2>How to take it</h2>

@@ -10,7 +10,7 @@ export async function GET(req) {
     return Response.json({
       store: storeMode,
       pinRequired: Boolean(process.env.SHOP_PIN),
-      shops: Object.values(s.shops).map((x) => ({ id: x.id, name: x.name })),
+      shops: Object.values(s.shops).map((x) => ({ id: x.id, name: x.name, verified: x.verified, open: isOpen(x) })),
     });
   }
   const shop = s.shops[id];
@@ -19,6 +19,9 @@ export async function GET(req) {
     id: shop.id,
     name: shop.name,
     open: isOpen(shop),
+    licenceNo: shop.licenceNo,
+    pharmacistName: shop.pharmacistName,
+    verified: shop.verified,
     pending: shop.pending,
     stock: shop.stock,
     orders: Object.values(s.orders)

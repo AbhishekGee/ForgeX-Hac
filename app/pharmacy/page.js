@@ -8,7 +8,12 @@ async function api(path, body) {
   return data;
 }
 
-const NEXT = { awaiting_shop: ['reserved', 'Confirm reserved'], reserved: ['out_for_delivery', 'Out for delivery (self)'], out_for_delivery: ['delivered', 'Delivered'] };
+const STATUS_LABEL = {
+  awaiting_shop: 'Awaiting your confirmation', accepted: 'Accepted', preparing: 'Preparing',
+  ready_for_pickup: 'Ready for pickup', out_for_delivery: 'Out for delivery', delivered: 'Delivered',
+  rejected: 'Rejected', cancelled: 'Cancelled', failed_delivery: 'Delivery failed',
+};
+const REJECT_REASONS = ['Out of stock', 'Store closing', 'Cannot fulfil this order', 'Other'];
 
 export default function Pharmacy() {
   const [meta, setMeta] = useState(null);
@@ -18,6 +23,7 @@ export default function Pharmacy() {
   const [prices, setPrices] = useState({});
   const [addName, setAddName] = useState('');
   const [addPrice, setAddPrice] = useState('');
+  const [rejecting, setRejecting] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => { api('/api/shops').then((m) => { setMeta(m); setShopId(m.shops[0]?.id || ''); }).catch((e) => setError(e.message)); }, []);
@@ -29,9 +35,14 @@ export default function Pharmacy() {
     setError('');
     try { await api('/api/shops/reply', { shopId, medicine, inStock, price, pin }); await load(); } catch (e) { setError(e.message); }
   }
-  async function setStatus(id, status) {
+  async function setStatus(id, status, reason) {
     setError('');
-    try { await api('/api/order/status', { id, status, pin, actor: 'shop' }); await load(); } catch (e) { setError(e.message); }
+    try { await api('/api/order/status', { id, status, pin, actor: 'shop', reason }); await load(); } catch (e) { setError(e.message); }
+    setRejecting(null);
+  }
+  async function reviewPrescription(id, decision) {
+    setError('');
+    try { await api('/api/order/prescription', { id, decision, pin }); await load(); } catch (e) { setError(e.message); }
   }
   async function resolveReview(id) {
     setError('');
@@ -39,6 +50,7 @@ export default function Pharmacy() {
   }
 
   if (!meta) return <p className="muted">Loading… {error}</p>;
+  const shopMeta = meta.shops.find((s) => s.id === shopId);
 
   return (
     <>
@@ -60,6 +72,14 @@ export default function Pharmacy() {
       {data && (
         <>
           <div className="card">
+            <div className="shop">
+              <h2>Licence &amp; verification</h2>
+              {data.verified ? <span className="verify-badge">Verified</span> : <span className="pill wait">Pending verification</span>}
+            </div>
+            <p className="muted">Licence {data.licenceNo || 'not on file'} · {data.pharmacistName || 'No registered pharmacist on file'}</p>
+          </div>
+
+          <div className="card">
             <h2>Stock requests <span className={'pill ' + (data.open ? 'ok' : 'bad')}>{data.open ? 'Open now' : 'Closed, no requests'}</span></h2>
             {data.pending.length === 0 && <p className="muted">No requests right now.</p>}
             {data.pending.map((k) => (
@@ -80,10 +100,43 @@ export default function Pharmacy() {
                 <strong>{o.items.map((i) => `${i.key}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ')}</strong> · ₹{o.total}
                 {o.partnerName && <div className="muted">Rider: {o.partnerName}</div>}
                 <div className="row" style={{ marginTop: 6 }}>
-                  <span className={'pill ' + (o.status === 'awaiting_shop' ? 'wait' : o.status === 'cancelled' ? 'bad' : 'ok')}>{o.status.replace(/_/g, ' ')}</span>
-                  {NEXT[o.status] && <button onClick={() => setStatus(o.id, NEXT[o.status][0])}>{NEXT[o.status][1]}</button>}
-                  {['awaiting_shop', 'reserved'].includes(o.status) && <button className="warn" onClick={() => setStatus(o.id, 'cancelled')}>Cancel</button>}
+                  <span className={'pill ' + (['delivered'].includes(o.status) ? 'ok' : ['rejected', 'cancelled', 'failed_delivery'].includes(o.status) ? 'bad' : 'wait')}>{STATUS_LABEL[o.status]}</span>
+                  {o.prescriptionStatus === 'pending' && <span className="pill wait">Rx review needed</span>}
                 </div>
+
+                {o.prescriptionStatus === 'pending' && (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button onClick={() => reviewPrescription(o.id, 'approved')}>Approve prescription</button>
+                    <button className="warn" onClick={() => reviewPrescription(o.id, 'rejected')}>Reject prescription</button>
+                  </div>
+                )}
+
+                {o.status === 'awaiting_shop' && (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button onClick={() => setStatus(o.id, 'accepted')}>Accept order</button>
+                    <button className="warn" onClick={() => setRejecting(rejecting === o.id ? null : o.id)}>Reject</button>
+                  </div>
+                )}
+                {rejecting === o.id && (
+                  <div className="row" style={{ marginTop: 6 }}>
+                    {REJECT_REASONS.map((r) => <button key={r} className="ghost" onClick={() => setStatus(o.id, 'rejected', r)}>{r}</button>)}
+                  </div>
+                )}
+                {o.status === 'accepted' && (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button onClick={() => setStatus(o.id, 'preparing')} disabled={o.prescriptionStatus === 'pending'}>Mark preparing</button>
+                    <button className="warn" onClick={() => setStatus(o.id, 'cancelled', 'Cancelled by pharmacy')}>Cancel</button>
+                  </div>
+                )}
+                {o.status === 'preparing' && (
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <button onClick={() => setStatus(o.id, 'ready_for_pickup')}>Ready for pickup</button>
+                    <button className="warn" onClick={() => setStatus(o.id, 'cancelled', 'Cancelled by pharmacy')}>Cancel</button>
+                  </div>
+                )}
+                {o.status === 'ready_for_pickup' && !o.partnerId && (
+                  <p className="muted" style={{ marginTop: 6 }}>Waiting for a delivery partner to accept.</p>
+                )}
               </div>
             ))}
           </div>

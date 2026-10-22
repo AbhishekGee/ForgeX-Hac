@@ -8,7 +8,10 @@ async function fetchAdmin(pin) {
   return data;
 }
 
-const STATUS_LABEL = { awaiting_shop: 'Awaiting pharmacy', reserved: 'Reserved', out_for_delivery: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled' };
+const STATUS_LABEL = {
+  awaiting_shop: 'Awaiting pharmacy', accepted: 'Accepted', preparing: 'Preparing', ready_for_pickup: 'Ready for pickup',
+  out_for_delivery: 'Out for delivery', delivered: 'Delivered', rejected: 'Rejected', cancelled: 'Cancelled', failed_delivery: 'Delivery failed',
+};
 
 export default function Admin() {
   const [pin, setPin] = useState('');
@@ -22,15 +25,10 @@ export default function Admin() {
       const d = await fetchAdmin(p);
       setData(d);
       setUnlocked(true);
-      if (!d.pinRequired) setUnlocked(true);
     } catch (e) { setError(e.message); }
   }
 
-  useEffect(() => {
-    // Try without a PIN first; if the server has no ADMIN_PIN set this succeeds immediately.
-    load('');
-  }, []);
-
+  useEffect(() => { load(''); }, []);
   useEffect(() => {
     if (!unlocked) return;
     const t = setInterval(() => load(pin), 5000);
@@ -58,17 +56,24 @@ export default function Admin() {
         <>
           <div className="metric-grid">
             <div className="metric"><span className="metric-val">{data.metrics.totalOrders}</span><span className="metric-label">Total orders</span></div>
-            <div className="metric"><span className="metric-val">₹{data.metrics.revenue}</span><span className="metric-label">Delivered revenue</span></div>
+            <div className="metric"><span className="metric-val">₹{data.metrics.grossOrderValue}</span><span className="metric-label">Gross order value</span></div>
+            <div className="metric"><span className="metric-val">₹{data.metrics.platformRevenue}</span><span className="metric-label">Platform revenue ({Math.round(data.metrics.commissionRate * 100)}% demo commission)</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.acceptanceRate ?? '—'}{data.metrics.acceptanceRate !== null ? '%' : ''}</span><span className="metric-label">Pharmacy acceptance rate</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.rejectionRate ?? '—'}{data.metrics.rejectionRate !== null ? '%' : ''}</span><span className="metric-label">Pharmacy rejection rate</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.deliveryCompletionRate ?? '—'}{data.metrics.deliveryCompletionRate !== null ? '%' : ''}</span><span className="metric-label">Delivery completion rate</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.avgConfirmationSec !== null ? `${data.metrics.avgConfirmationSec}s` : '—'}</span><span className="metric-label">Avg. pharmacy confirmation time</span></div>
             <div className="metric"><span className="metric-val">{data.metrics.pharmacyCount}</span><span className="metric-label">Pharmacies</span></div>
             <div className="metric"><span className="metric-val">{data.metrics.partnerCount}</span><span className="metric-label">Delivery partners</span></div>
-            <div className="metric"><span className="metric-val">{data.metrics.pendingReviews}</span><span className="metric-label">Pending reviews</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.pendingPrescriptionReviews}</span><span className="metric-label">Pending Rx approvals</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.pendingOcrReviews}</span><span className="metric-label">Pending photo reviews</span></div>
+            <div className="metric"><span className="metric-val">{data.metrics.stockFailures}</span><span className="metric-label">Stock-related rejections</span></div>
           </div>
 
           <div className="card">
             <h2>Orders by status</h2>
             <div className="row" style={{ flexWrap: 'wrap' }}>
               {Object.entries(STATUS_LABEL).map(([k, label]) => (
-                <span key={k} className={'pill ' + (k === 'cancelled' ? 'bad' : k === 'delivered' ? 'ok' : 'wait')}>{label}: {data.metrics.byStatus[k] || 0}</span>
+                <span key={k} className={'pill ' + (['rejected', 'cancelled', 'failed_delivery'].includes(k) ? 'bad' : k === 'delivered' ? 'ok' : 'wait')}>{label}: {data.metrics.byStatus[k] || 0}</span>
               ))}
             </div>
           </div>
@@ -80,18 +85,33 @@ export default function Admin() {
               <div key={o.id} style={{ borderTop: '1px solid var(--line)', padding: '8px 0' }}>
                 <div className="row" style={{ justifyContent: 'space-between', margin: 0 }}>
                   <strong>{o.shopName}</strong>
-                  <span className={'pill ' + (o.status === 'cancelled' ? 'bad' : o.status === 'delivered' ? 'ok' : 'wait')}>{STATUS_LABEL[o.status]}</span>
+                  <span className={'pill ' + (['rejected', 'cancelled', 'failed_delivery'].includes(o.status) ? 'bad' : o.status === 'delivered' ? 'ok' : 'wait')}>{STATUS_LABEL[o.status]}</span>
                 </div>
                 <div className="muted">{o.items.map((i) => `${i.key}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ')} · ₹{o.total}{o.partnerName ? ` · Rider: ${o.partnerName}` : ''}</div>
               </div>
             ))}
           </div>
 
+          {data.rejectedOrders.length > 0 && (
+            <div className="card">
+              <h2>Rejected orders</h2>
+              {data.rejectedOrders.map((o) => (
+                <div key={o.id} style={{ borderTop: '1px solid var(--line)', padding: '8px 0' }}>
+                  <strong>{o.shopName}</strong>
+                  <div className="muted">{o.rejectionReason}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="card">
             <h2>Pharmacies</h2>
             <ul className="items">
               {data.pharmacies.map((p) => (
-                <li key={p.id}><span>{p.name}</span><span className={'pill ' + (p.open ? 'ok' : 'bad')}>{p.open ? 'Open' : 'Closed'} · {p.items} items</span></li>
+                <li key={p.id}>
+                  <span>{p.name} {p.verified && <span className="verify-badge">Verified</span>}</span>
+                  <span className={'pill ' + (p.open ? 'ok' : 'bad')}>{p.open ? 'Open' : 'Closed'} · {p.items} items</span>
+                </li>
               ))}
             </ul>
           </div>
@@ -100,7 +120,10 @@ export default function Admin() {
             <h2>Delivery partners</h2>
             <ul className="items">
               {data.partners.map((p) => (
-                <li key={p.id}><span>{p.name} · {p.vehicle}</span><span className="pill wait">{p.activeDeliveries} active</span></li>
+                <li key={p.id}>
+                  <span>{p.name} · {p.vehicle} {p.verified && <span className="verify-badge">Verified</span>}</span>
+                  <span className="pill wait">{p.activeDeliveries} active · {p.completedDeliveries} done</span>
+                </li>
               ))}
             </ul>
           </div>
