@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { IconBike } from '../components/icons.js';
+import { partnerPhoto } from '../../lib/people.js';
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : undefined);
@@ -47,12 +48,20 @@ export default function Partner() {
       </section>
       {error && <div className="err">{error}</div>}
       <div className="card">
+        {partnerMeta && (
+          <div className="person-row" style={{ marginBottom: 16 }}>
+            {partnerPhoto(partnerMeta.id) && <img className="person-photo person-photo-lg" src={partnerPhoto(partnerMeta.id)} alt={partnerMeta.name} />}
+            <div>
+              <strong style={{ fontSize: 17 }}>{partnerMeta.name}</strong>
+              <div className="muted">{partnerMeta.vehicle} · {partnerMeta.verified ? 'Verified rider' : 'Verification pending'}</div>
+            </div>
+          </div>
+        )}
         <label htmlFor="partner">Your name</label>
         <select id="partner" value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
           {meta.partners.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.vehicle}</option>)}
         </select>
         {meta.pinRequired && (<><label htmlFor="pin" style={{ marginTop: 8 }}>PIN</label><input id="pin" type="password" value={pin} onChange={(e) => setPin(e.target.value)} /></>)}
-        {partnerMeta && <p className="muted">{partnerMeta.verified ? 'Verified rider' : 'Verification pending'}</p>}
       </div>
 
       {data && (

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Molecule } from '../components/graphics.js';
+import { partnerPhoto } from '../../lib/people.js';
 
 async function fetchAdmin(pin) {
   const res = await fetch('/api/admin', { headers: pin ? { 'x-admin-pin': pin } : {} });
@@ -147,8 +148,11 @@ export default function Admin() {
             <h2>Delivery partners</h2>
             <ul className="items">
               {data.partners.map((p) => (
-                <li key={p.id}>
-                  <span>{p.name} · {p.vehicle} {p.verified && <span className="verify-badge">Verified</span>}</span>
+                <li key={p.id} style={{ alignItems: 'center' }}>
+                  <span className="person-row">
+                    {partnerPhoto(p.id) && <img className="person-photo" src={partnerPhoto(p.id)} alt={p.name} />}
+                    <span>{p.name} · {p.vehicle} {p.verified && <span className="verify-badge">Verified</span>}</span>
+                  </span>
                   <span className="pill wait">{p.activeDeliveries} active · {p.completedDeliveries} done</span>
                 </li>
               ))}

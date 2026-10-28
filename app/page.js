@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
 import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash, IconShieldCheck, IconGlobe } from './components/icons.js';
 import { Molecule } from './components/graphics.js';
+import { partnerPhoto } from '../lib/people.js';
 
 // Real photos (Unsplash License — free to use), not illustrations, so medicines
 // look like an actual product instead of a flat vector graphic.
@@ -452,7 +453,9 @@ export default function Patient() {
             <div className="order-bar-wrap">
               <div className={'order-bar' + (barOpen ? ' open' : '')}>
                 <button type="button" className="order-bar-toggle" onClick={() => setBarOpen((v) => !v)} aria-expanded={barOpen}>
-                  <span className="order-bar-icon"><BarIcon size={18} /></span>
+                  {primary.order.status === 'out_for_delivery' && partnerPhoto(primary.order.partnerId)
+                    ? <img className="order-bar-icon person-photo" src={partnerPhoto(primary.order.partnerId)} alt={primary.order.partnerName} />
+                    : <span className="order-bar-icon"><BarIcon size={18} /></span>}
                   <span className="order-bar-text">
                     <strong>{primary.order.shopName}</strong>
                     <span className="order-bar-status">{ORDER_LABEL[primary.order.status]}</span>
@@ -499,7 +502,13 @@ export default function Patient() {
                           )}
                           {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
                           {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
-                            <p className="muted">Rider: {order.partnerName}</p>
+                            <div className="rider-card">
+                              {partnerPhoto(order.partnerId) && <img className="person-photo person-photo-lg" src={partnerPhoto(order.partnerId)} alt={order.partnerName} />}
+                              <div>
+                                <span className="muted">{order.status === 'delivered' ? 'Delivered by' : 'Your rider'}</span>
+                                <strong style={{ display: 'block' }}>{order.partnerName}</strong>
+                              </div>
+                            </div>
                           )}
                           <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
                           <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
