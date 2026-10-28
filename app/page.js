@@ -136,11 +136,32 @@ export default function Patient() {
       const items = shop.items.map((i) => ({ key: i.key, qty: i.qty }));
       const { order } = await api('/api/order', { shopId: shop.id, items, hasPrescription: hasRx });
       setOrder(order); setStage('order');
+      try { localStorage.setItem('pharmfetch_order_id', order.id); } catch {}
       const ins = await api('/api/instructions', { keys: order.items.map((i) => i.key), language: lang });
       setInfo(ins);
     } catch (e) { setError(e.message); search(); }
     setBusy(false);
   }
+
+  // Restore an in-progress order on load, so leaving for /pharmacy, /partner or /admin
+  // and coming back to the customer page shows the same order, not a blank search.
+  useEffect(() => {
+    let savedId;
+    try { savedId = localStorage.getItem('pharmfetch_order_id'); } catch { return; }
+    if (!savedId) return;
+    (async () => {
+      try {
+        const { order: restored } = await api('/api/order?id=' + savedId);
+        setOrder(restored);
+        setStage('order');
+        const ins = await api('/api/instructions', { keys: restored.items.map((i) => i.key), language: lang });
+        setInfo(ins);
+      } catch {
+        try { localStorage.removeItem('pharmfetch_order_id'); } catch {}
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (stage !== 'order' || !order) return;
@@ -335,7 +356,7 @@ export default function Patient() {
               <p className="muted">{info.note}</p>
             </div>
           )}
-          <button className="ghost" onClick={() => { setStage('input'); setOrder(null); setInfo(null); setShops([]); }}>Start a new search</button>
+          <button className="ghost" onClick={() => { setStage('input'); setOrder(null); setInfo(null); setShops([]); try { localStorage.removeItem('pharmfetch_order_id'); } catch {} }}>Start a new search</button>
         </>
       )}
     </>
