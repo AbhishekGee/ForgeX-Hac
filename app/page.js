@@ -85,8 +85,8 @@ export default function Patient() {
   const [meds, setMeds] = useState([]);
   const [shops, setShops] = useState([]);
   const [flags, setFlags] = useState({ blocked: [], needsPrescription: [] });
-  const [order, setOrder] = useState(null);
-  const [info, setInfo] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [expanded, setExpanded] = useState({});
   const [lang, setLang] = useState('en');
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -135,45 +135,83 @@ export default function Patient() {
     try {
       const items = shop.items.map((i) => ({ key: i.key, qty: i.qty }));
       const { order } = await api('/api/order', { shopId: shop.id, items, hasPrescription: hasRx });
-      setOrder(order); setStage('order');
-      try { localStorage.setItem('pharmfetch_order_id', order.id); } catch {}
-      const ins = await api('/api/instructions', { keys: order.items.map((i) => i.key), language: lang });
-      setInfo(ins);
+      const info = await api('/api/instructions', { keys: order.items.map((i) => i.key), language: lang });
+      setOrders((prev) => {
+        const next = [{ order, info }, ...prev];
+        try { localStorage.setItem('pharmfetch_order_ids', JSON.stringify(next.map((o) => o.order.id))); } catch {}
+        return next;
+      });
+      setExpanded((prev) => ({ ...prev, [order.id]: true }));
+      // Go back to a clean search instead of locking the page to this order,
+      // so another order can be placed while this one is being delivered.
+      setStage('input'); setMeds([]); setShops([]); setText(''); setImage(null);
     } catch (e) { setError(e.message); search(); }
     setBusy(false);
   }
 
-  // Restore an in-progress order on load, so leaving for /pharmacy, /partner or /admin
-  // and coming back to the customer page shows the same order, not a blank search.
+  // Restore any orders placed earlier, so leaving for /pharmacy, /partner or /admin
+  // and coming back still shows them, without taking over the page or blocking a new search.
   useEffect(() => {
-    let savedId;
-    try { savedId = localStorage.getItem('pharmfetch_order_id'); } catch { return; }
-    if (!savedId) return;
-    (async () => {
-      try {
-        const { order: restored } = await api('/api/order?id=' + savedId);
-        setOrder(restored);
-        setStage('order');
-        const ins = await api('/api/instructions', { keys: restored.items.map((i) => i.key), language: lang });
-        setInfo(ins);
-      } catch {
-        try { localStorage.removeItem('pharmfetch_order_id'); } catch {}
+    let ids = [];
+    try {
+      const raw = localStorage.getItem('pharmfetch_order_ids');
+      ids = raw ? JSON.parse(raw) : [];
+      if (!ids.length) {
+        const legacy = localStorage.getItem('pharmfetch_order_id');
+        if (legacy) ids = [legacy];
       }
+    } catch { return; }
+    if (!ids.length) return;
+    (async () => {
+      const loaded = [];
+      for (const id of ids) {
+        try {
+          const { order: restored } = await api('/api/order?id=' + id);
+          const info = await api('/api/instructions', { keys: restored.items.map((i) => i.key), language: lang });
+          loaded.push({ order: restored, info });
+        } catch { /* order gone or id invalid, drop it */ }
+      }
+      setOrders(loaded);
+      try { localStorage.setItem('pharmfetch_order_ids', JSON.stringify(loaded.map((o) => o.order.id))); } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const orderIdsKey = orders.map((o) => o.order.id).join(',');
   useEffect(() => {
-    if (stage !== 'order' || !order) return;
+    if (!orders.length) return;
+    const ids = orders.map((o) => o.order.id);
     const t = setInterval(async () => {
-      try { setOrder((await api('/api/order?id=' + order.id)).order); } catch {}
+      const updates = await Promise.all(ids.map((id) => api('/api/order?id=' + id).then((r) => r.order).catch(() => null)));
+      setOrders((prev) => prev.map((entry) => {
+        const upd = updates.find((u) => u && u.id === entry.order.id);
+        return upd ? { ...entry, order: upd } : entry;
+      }));
     }, 4000);
     return () => clearInterval(t);
-  }, [stage, order?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderIdsKey]);
+
+  function toggleExpand(id) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function dismissOrder(id) {
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.order.id !== id);
+      try { localStorage.setItem('pharmfetch_order_ids', JSON.stringify(next.map((o) => o.order.id))); } catch {}
+      return next;
+    });
+  }
 
   async function switchLang(l) {
     setLang(l);
-    if (order) setInfo(await api('/api/instructions', { keys: order.items.map((i) => i.key), language: l }));
+    if (!orders.length) return;
+    const updated = await Promise.all(orders.map(async (entry) => ({
+      ...entry,
+      info: await api('/api/instructions', { keys: entry.order.items.map((i) => i.key), language: l }),
+    })));
+    setOrders(updated);
   }
 
   async function pick(e) {
@@ -185,7 +223,7 @@ export default function Patient() {
     setMeds(meds.map((x, j) => (j === i ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x)));
   }
 
-  const stepIdx = { input: 0, confirm: 0, results: 1, order: 2 }[stage];
+  const stepIdx = { input: 0, confirm: 0, results: 1 }[stage];
 
   return (
     <>
@@ -201,7 +239,7 @@ export default function Patient() {
         <div className="trust-item"><IconBike size={26} /><span>Express delivery</span></div>
       </div>
       <ol className="steps">
-        {['Your medicine', 'Choose a pharmacy', 'Delivery'].map((s, i) => <li key={s} className={i === stepIdx ? 'on' : ''}>{s}</li>)}
+        {['Your medicine', 'Choose a pharmacy'].map((s, i) => <li key={s} className={i === stepIdx ? 'on' : ''}>{s}</li>)}
       </ol>
       {error && <div className="err">{error}</div>}
 
@@ -305,59 +343,75 @@ export default function Patient() {
         </>
       )}
 
-      {stage === 'order' && order && (
-        <>
-          <div className="card">
-            <h2>{order.shopName}</h2>
-            {trackerIndex(order.status) >= 0 && (
-              <div className="tracker">
-                {TRACKER_STEPS.map((step, i) => {
-                  const cur = trackerIndex(order.status);
-                  const state = i < cur ? 'done' : i === cur ? 'active' : '';
-                  return (
-                    <div className={'tracker-step ' + state} key={step.key}>
-                      <div className="tracker-icon"><step.Icon size={18} /></div>
-                      <span className="tracker-label">{step.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <p><span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span></p>
-            {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
-              <p className="muted">Reason: {order.rejectionReason}</p>
-            )}
-            {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
-            {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
-              <p className="muted">Rider: {order.partnerName}</p>
-            )}
-            <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
-            <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
+      {orders.length > 0 && (
+        <section className="orders-panel">
+          <div className="title-row">
+            <h2 style={{ margin: 0 }}>Your orders</h2>
+            <div className="row" style={{ margin: 0 }}>
+              <button className={lang === 'en' ? '' : 'ghost'} onClick={() => switchLang('en')}>English</button>
+              <button className={lang === 'hi' ? '' : 'ghost'} onClick={() => switchLang('hi')}>हिन्दी</button>
+            </div>
           </div>
-
-          <div className="card">
-            <h2>Order timeline</h2>
-            <ul className="items">
-              {order.history.map((h, i) => (
-                <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
-              ))}
-            </ul>
-          </div>
-
-          {info && (
-            <div className="card">
-              <div className="shop"><h2>How to take it</h2>
-                <div className="row">
-                  <button className={lang === 'en' ? '' : 'ghost'} onClick={() => switchLang('en')}>English</button>
-                  <button className={lang === 'hi' ? '' : 'ghost'} onClick={() => switchLang('hi')}>हिन्दी</button>
+          {orders.map(({ order, info }) => {
+            const isOpen = Boolean(expanded[order.id]);
+            const terminal = ['delivered', 'rejected', 'cancelled', 'failed_delivery'].includes(order.status);
+            return (
+              <div className="card" key={order.id}>
+                <div className="shop" style={{ cursor: 'pointer' }} onClick={() => toggleExpand(order.id)}>
+                  <div>
+                    <strong>{order.shopName}</strong>
+                    <div className="muted">₹{order.total} · {order.items.length} item{order.items.length > 1 ? 's' : ''}</div>
+                  </div>
+                  <span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span>
+                </div>
+                {trackerIndex(order.status) >= 0 && (
+                  <div className="tracker">
+                    {TRACKER_STEPS.map((step, i) => {
+                      const cur = trackerIndex(order.status);
+                      const state = i < cur ? 'done' : i === cur ? 'active' : '';
+                      return (
+                        <div className={'tracker-step ' + state} key={step.key}>
+                          <div className="tracker-icon"><step.Icon size={18} /></div>
+                          <span className="tracker-label">{step.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {isOpen && (
+                  <>
+                    {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
+                      <p className="muted">Reason: {order.rejectionReason}</p>
+                    )}
+                    {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
+                    {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
+                      <p className="muted">Rider: {order.partnerName}</p>
+                    )}
+                    <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
+                    <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
+                    <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>Order timeline</p>
+                    <ul className="items">
+                      {order.history.map((h, i) => (
+                        <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
+                      ))}
+                    </ul>
+                    {info && (
+                      <>
+                        <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>How to take it</p>
+                        {info.entries.map((e) => <p key={e.key}><strong>{e.key}</strong><br />{e.text}</p>)}
+                        <p className="muted">{info.note}</p>
+                      </>
+                    )}
+                  </>
+                )}
+                <div className="row" style={{ marginTop: 12 }}>
+                  <button className="ghost" onClick={() => toggleExpand(order.id)}>{isOpen ? 'Hide details' : 'View details'}</button>
+                  {terminal && <button className="warn" onClick={() => dismissOrder(order.id)}>Remove</button>}
                 </div>
               </div>
-              {info.entries.map((e) => <p key={e.key}><strong>{e.key}</strong><br />{e.text}</p>)}
-              <p className="muted">{info.note}</p>
-            </div>
-          )}
-          <button className="ghost" onClick={() => { setStage('input'); setOrder(null); setInfo(null); setShops([]); try { localStorage.removeItem('pharmfetch_order_id'); } catch {} }}>Start a new search</button>
-        </>
+            );
+          })}
+        </section>
       )}
     </>
   );
