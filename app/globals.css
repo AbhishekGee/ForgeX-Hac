@@ -162,7 +162,29 @@ body {
 main { max-width: 640px; margin: 0 auto; padding: 48px 20px 24px; }
 
 /* Hero */
-.hero { text-align: center; margin: 8px 0 40px; animation: riseIn .6s var(--ease); }
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  text-align: left;
+  background: linear-gradient(135deg, var(--sage), var(--accent-soft));
+  border-radius: var(--radius-lg);
+  padding: 32px 30px;
+  margin: 8px 0 28px;
+  overflow: hidden;
+  animation: riseIn .6s var(--ease);
+}
+.hero-text { flex: 1; min-width: 0; }
+.hero-text .sub { margin: 0; }
+.hero-cta-row { justify-content: flex-start; }
+.hero-art { flex-shrink: 0; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 10px 20px rgba(32, 43, 41, 0.15)); }
+@media (max-width: 640px) {
+  .hero { flex-direction: column; text-align: center; padding: 26px 20px; }
+  .hero-text .sub { margin: 0 auto; }
+  .hero-cta-row { justify-content: center; }
+  .hero-art { order: -1; }
+}
 .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -417,7 +439,7 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
   transition: border-color .2s var(--ease), background .2s var(--ease);
 }
 .product-tile:hover { border-color: var(--accent-secondary); background: var(--sage); }
-.product-tile-thumb { display: flex; margin-bottom: 4px; }
+.product-tile-thumb { display: flex; align-items: center; height: 36px; margin-bottom: 6px; }
 .product-tile-name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .product-tile-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; }
 .product-tile-strength { font-size: 12px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
@@ -461,6 +483,7 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
 }
 
 .product-detail { background: var(--sage); border-radius: var(--radius-md); padding: 14px; margin: 10px 0; font-size: 14px; }
+.product-detail-art { display: flex; justify-content: center; padding: 6px 0 14px; }
 .product-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
 .product-detail dt { color: var(--mute); }
 .product-detail dd { margin: 0; font-weight: 600; }

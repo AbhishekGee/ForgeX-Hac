@@ -54,6 +54,32 @@ export function PillBottle({ size = 108, className, style }) {
   );
 }
 
+export function MedicineBlister({ width = 44, height = 34, className, style }) {
+  return (
+    <svg className={className} style={style} width={width} height={height} viewBox="0 0 44 34" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="42" height="32" rx="6" fill="var(--card)" stroke="var(--line)" strokeWidth="1.4" />
+      {[0, 1].map((r) => (
+        <g key={r}>
+          {[0, 1, 2, 3].map((c) => (
+            <circle key={c} cx={8 + c * 9.3} cy={10 + r * 13} r="3.1" fill="var(--sage)" stroke="var(--accent)" strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function SachetPack({ width = 38, height = 34, className, style }) {
+  return (
+    <svg className={className} style={style} width={width} height={height} viewBox="0 0 38 34" fill="none" aria-hidden="true">
+      <path d="M4 7h30l-3 25H7L4 7z" fill="var(--accent-soft)" stroke="var(--accent)" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M4 7l4-4h22l4 4" fill="none" stroke="var(--accent)" strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="19" cy="19" r="5.5" fill="var(--sage)" />
+      <path d="M16 19h6M19 16v6" stroke="var(--accent)" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function HeartbeatLine({ width = 160, height = 28, color = 'var(--mute-2)', className, style }) {
   return (
     <svg className={className} style={style} width={width} height={height} viewBox="0 0 160 28" fill="none" aria-hidden="true">

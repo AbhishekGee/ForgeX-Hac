@@ -2,7 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
 import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash, IconShieldCheck, IconGlobe } from './components/icons.js';
-import { Molecule, PillCapsule, Sparkle } from './components/graphics.js';
+import { Molecule, PillCapsule, PillBottle, MedicineBlister, SachetPack, Sparkle } from './components/graphics.js';
+
+function ProductArt({ form, size = 38 }) {
+  if (form === 'Oral rehydration salts') return <SachetPack width={size} height={size * 0.9} />;
+  if (form === 'Capsule') return <PillBottle size={size * 0.85} />;
+  return <MedicineBlister width={size * 1.15} height={size * 0.9} />;
+}
 
 const CATEGORY_ICON = {
   'Pain relief': IconTablet,
@@ -253,12 +259,17 @@ export default function Patient() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
-        <h1>Medicine, fast. <Sparkle size={22} style={{ verticalAlign: 'text-top' }} /></h1>
-        <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
-        <div className="hero-cta-row">
-          <button onClick={focusMeds}>Shop medicines <span aria-hidden="true">→</span></button>
-          <button className="ghost" onClick={openPrescriptionUpload}>Upload prescription <span aria-hidden="true">↑</span></button>
+        <div className="hero-text">
+          <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
+          <h1>Medicine, fast. <Sparkle size={22} style={{ verticalAlign: 'text-top' }} /></h1>
+          <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
+          <div className="hero-cta-row">
+            <button onClick={focusMeds}>Shop medicines <span aria-hidden="true">→</span></button>
+            <button className="ghost" onClick={openPrescriptionUpload}>Upload prescription <span aria-hidden="true">↑</span></button>
+          </div>
+        </div>
+        <div className="hero-art">
+          <PillBottle size={120} />
         </div>
       </section>
       <div className="why-strip">
@@ -319,11 +330,11 @@ export default function Patient() {
           </div>
 
           <div className="card">
-            <div className="title-row"><h2 style={{ margin: 0 }}>Frequently searched</h2><Sparkle size={14} /></div>
+            <div className="title-row"><h2 style={{ margin: 0 }}>Popular medicines</h2><Sparkle size={14} /></div>
             <div className="product-grid">
               {CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter).map((p) => (
                 <div key={p.key} className="product-tile" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
-                  <span className="product-tile-thumb"><PillCapsule width={38} height={14} rotate={-18} /></span>
+                  <span className="product-tile-thumb"><ProductArt form={p.form} /></span>
                   <span className="product-tile-name">{p.name}</span>
                   <div className="product-tile-bottom">
                     <span className="product-tile-strength">{p.strength}{p.prescriptionRequired && <span className="rx"> · Rx</span>}</span>
@@ -341,6 +352,7 @@ export default function Patient() {
               const p = CATALOG.find((x) => x.key === openProduct);
               return (
                 <div className="product-detail">
+                  <div className="product-detail-art"><ProductArt form={p.form} size={56} /></div>
                   <dl>
                     <dt>Brand</dt><dd>{p.brand}</dd>
                     <dt>Form</dt><dd>{p.form}</dd>
