@@ -15,11 +15,11 @@ export default function NavBar() {
   return (
     <header className="nav">
       <div className="nav-inner">
-        <a href="/" className="brand">
+        <a href="/" className="brand" aria-label="PharmFetch — home" title="PharmFetch">
           <span className="brand-mark" aria-hidden="true">
             <Logo size={28} />
           </span>
-          <span className="brand-word"><span>Pharm</span><b>Fetch</b></span>
+          <span className="brand-word" aria-hidden="true"><span>P</span><b>F</b></span>
         </a>
         <nav className="nav-links">
           {LINKS.map((l) => <a key={l.href} href={l.href} className="nav-link">{l.label}</a>)}

@@ -96,8 +96,9 @@ body {
   text-decoration: none;
 }
 .brand-mark { display: inline-flex; color: var(--accent); }
+.brand-word { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
 .brand-word span { color: var(--ink); }
-.brand-word b { color: var(--accent); font-weight: 700; }
+.brand-word b { color: var(--accent); font-weight: 800; }
 .nav-links { display: flex; gap: 2px; }
 .nav-link {
   color: var(--mute);
@@ -324,7 +325,85 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
 .shop { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 
-.orders-panel { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+/* Floating order status bar — pinned to the bottom of the viewport (Zomato-style
+   live order tracker), independent of page scroll, with one toggle to expand it. */
+.order-bar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 20, 19, 0.38);
+  z-index: 70;
+  animation: fadeIn .2s var(--ease);
+}
+.order-bar-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 75;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px env(safe-area-inset-bottom, 0);
+  pointer-events: none;
+}
+.order-bar {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 600px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 30px rgba(32, 43, 41, 0.16);
+  overflow: hidden;
+}
+.order-bar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+}
+.order-bar-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-bar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.order-bar-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-bar-status { font-size: 12.5px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-bar-count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.order-bar-chevron { flex-shrink: 0; color: var(--mute); font-size: 11px; transform: rotate(180deg); transition: transform .25s var(--ease); }
+.order-bar.open .order-bar-chevron { transform: rotate(0deg); }
+.order-bar-panel {
+  max-height: min(66vh, 560px);
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  padding: 14px 18px 20px;
+  animation: slideUp .22s var(--ease);
+}
+.order-entry + .order-entry { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .items { margin: 12px 0 0; padding: 0; list-style: none; }
 .items li { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; }
 

@@ -40,6 +40,7 @@ const ORDER_LABEL = {
 const ORDER_PILL = {
   delivered: 'ok', rejected: 'bad', cancelled: 'bad', failed_delivery: 'bad', awaiting_shop: 'wait',
 };
+const TERMINAL_STATUSES = ['delivered', 'rejected', 'cancelled', 'failed_delivery'];
 const HISTORY_LABEL = {
   awaiting_shop: 'Order placed',
   accepted: 'Pharmacy accepted',
@@ -86,7 +87,7 @@ export default function Patient() {
   const [shops, setShops] = useState([]);
   const [flags, setFlags] = useState({ blocked: [], needsPrescription: [] });
   const [orders, setOrders] = useState([]);
-  const [expanded, setExpanded] = useState({});
+  const [barOpen, setBarOpen] = useState(false);
   const [lang, setLang] = useState('en');
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -141,7 +142,7 @@ export default function Patient() {
         try { localStorage.setItem('pharmfetch_order_ids', JSON.stringify(next.map((o) => o.order.id))); } catch {}
         return next;
       });
-      setExpanded((prev) => ({ ...prev, [order.id]: true }));
+      setBarOpen(true);
       // Go back to a clean search instead of locking the page to this order,
       // so another order can be placed while this one is being delivered.
       setStage('input'); setMeds([]); setShops([]); setText(''); setImage(null);
@@ -191,10 +192,6 @@ export default function Patient() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderIdsKey]);
-
-  function toggleExpand(id) {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  }
 
   function dismissOrder(id) {
     setOrders((prev) => {
@@ -343,76 +340,96 @@ export default function Patient() {
         </>
       )}
 
-      {orders.length > 0 && (
-        <section className="orders-panel">
-          <div className="title-row">
-            <h2 style={{ margin: 0 }}>Your orders</h2>
-            <div className="row" style={{ margin: 0 }}>
-              <button className={lang === 'en' ? '' : 'ghost'} onClick={() => switchLang('en')}>English</button>
-              <button className={lang === 'hi' ? '' : 'ghost'} onClick={() => switchLang('hi')}>हिन्दी</button>
-            </div>
-          </div>
-          {orders.map(({ order, info }) => {
-            const isOpen = Boolean(expanded[order.id]);
-            const terminal = ['delivered', 'rejected', 'cancelled', 'failed_delivery'].includes(order.status);
-            return (
-              <div className="card" key={order.id}>
-                <div className="shop" style={{ cursor: 'pointer' }} onClick={() => toggleExpand(order.id)}>
-                  <div>
-                    <strong>{order.shopName}</strong>
-                    <div className="muted">₹{order.total} · {order.items.length} item{order.items.length > 1 ? 's' : ''}</div>
-                  </div>
-                  <span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span>
-                </div>
-                {trackerIndex(order.status) >= 0 && (
-                  <div className="tracker">
-                    {TRACKER_STEPS.map((step, i) => {
-                      const cur = trackerIndex(order.status);
-                      const state = i < cur ? 'done' : i === cur ? 'active' : '';
+      {orders.length > 0 && (() => {
+        const primary = orders.find((o) => !TERMINAL_STATUSES.includes(o.order.status)) || orders[0];
+        const cur = trackerIndex(primary.order.status);
+        const BarIcon = (cur >= 0 && TRACKER_STEPS[cur]) ? TRACKER_STEPS[cur].Icon : IconPackage;
+        return (
+          <>
+            <div style={{ height: 78 }} aria-hidden="true" />
+            {barOpen && <div className="order-bar-backdrop" onClick={() => setBarOpen(false)} />}
+            <div className="order-bar-wrap">
+              <div className={'order-bar' + (barOpen ? ' open' : '')}>
+                <button type="button" className="order-bar-toggle" onClick={() => setBarOpen((v) => !v)} aria-expanded={barOpen}>
+                  <span className="order-bar-icon"><BarIcon size={18} /></span>
+                  <span className="order-bar-text">
+                    <strong>{primary.order.shopName}</strong>
+                    <span className="order-bar-status">{ORDER_LABEL[primary.order.status]}</span>
+                  </span>
+                  {orders.length > 1 && <span className="order-bar-count">+{orders.length - 1}</span>}
+                  <span className="order-bar-chevron">▲</span>
+                </button>
+                {barOpen && (
+                  <div className="order-bar-panel">
+                    <div className="title-row">
+                      <h2 style={{ margin: 0, fontSize: 16 }}>Your orders</h2>
+                      <div className="row" style={{ margin: 0 }}>
+                        <button className={lang === 'en' ? '' : 'ghost'} onClick={() => switchLang('en')}>English</button>
+                        <button className={lang === 'hi' ? '' : 'ghost'} onClick={() => switchLang('hi')}>हिन्दी</button>
+                      </div>
+                    </div>
+                    {orders.map(({ order, info }) => {
+                      const terminal = TERMINAL_STATUSES.includes(order.status);
                       return (
-                        <div className={'tracker-step ' + state} key={step.key}>
-                          <div className="tracker-icon"><step.Icon size={18} /></div>
-                          <span className="tracker-label">{step.label}</span>
+                        <div className="order-entry" key={order.id}>
+                          <div className="shop">
+                            <div>
+                              <strong>{order.shopName}</strong>
+                              <div className="muted">₹{order.total} · {order.items.length} item{order.items.length > 1 ? 's' : ''}</div>
+                            </div>
+                            <span className={'pill ' + (ORDER_PILL[order.status] || 'ok')}>{ORDER_LABEL[order.status]}</span>
+                          </div>
+                          {trackerIndex(order.status) >= 0 && (
+                            <div className="tracker">
+                              {TRACKER_STEPS.map((step, i) => {
+                                const c = trackerIndex(order.status);
+                                const state = i < c ? 'done' : i === c ? 'active' : '';
+                                return (
+                                  <div className={'tracker-step ' + state} key={step.key}>
+                                    <div className="tracker-icon"><step.Icon size={18} /></div>
+                                    <span className="tracker-label">{step.label}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
+                            <p className="muted">Reason: {order.rejectionReason}</p>
+                          )}
+                          {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
+                          {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
+                            <p className="muted">Rider: {order.partnerName}</p>
+                          )}
+                          <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
+                          <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
+                          <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>Order timeline</p>
+                          <ul className="items">
+                            {order.history.map((h, i) => (
+                              <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
+                            ))}
+                          </ul>
+                          {info && (
+                            <>
+                              <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>How to take it</p>
+                              {info.entries.map((e) => <p key={e.key}><strong>{e.key}</strong><br />{e.text}</p>)}
+                              <p className="muted">{info.note}</p>
+                            </>
+                          )}
+                          {terminal && (
+                            <div className="row" style={{ marginTop: 12 }}>
+                              <button className="warn" onClick={() => dismissOrder(order.id)}>Remove</button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 )}
-                {isOpen && (
-                  <>
-                    {(order.status === 'rejected' || order.status === 'cancelled') && order.rejectionReason && (
-                      <p className="muted">Reason: {order.rejectionReason}</p>
-                    )}
-                    {order.prescriptionStatus === 'pending' && <div className="note">Waiting for the pharmacist to approve your prescription before this order is prepared.</div>}
-                    {order.partnerName && ['out_for_delivery', 'delivered'].includes(order.status) && (
-                      <p className="muted">Rider: {order.partnerName}</p>
-                    )}
-                    <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
-                    <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
-                    <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>Order timeline</p>
-                    <ul className="items">
-                      {order.history.map((h, i) => (
-                        <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
-                      ))}
-                    </ul>
-                    {info && (
-                      <>
-                        <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>How to take it</p>
-                        {info.entries.map((e) => <p key={e.key}><strong>{e.key}</strong><br />{e.text}</p>)}
-                        <p className="muted">{info.note}</p>
-                      </>
-                    )}
-                  </>
-                )}
-                <div className="row" style={{ marginTop: 12 }}>
-                  <button className="ghost" onClick={() => toggleExpand(order.id)}>{isOpen ? 'Hide details' : 'View details'}</button>
-                  {terminal && <button className="warn" onClick={() => dismissOrder(order.id)}>Remove</button>}
-                </div>
               </div>
-            );
-          })}
-        </section>
-      )}
+            </div>
+          </>
+        );
+      })()}
     </>
   );
 }
