@@ -17,69 +17,6 @@ export function Molecule({ size = 48, color = 'var(--accent)', className, style 
   );
 }
 
-export function Sparkle({ size = 18, color = 'var(--accent-secondary)', className, style }) {
-  return (
-    <svg className={className} style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 0C12 6 14 10 20 12C14 14 12 18 12 24C12 18 10 14 4 12C10 10 12 6 12 0Z" fill={color} />
-    </svg>
-  );
-}
-
-export function PillCapsule({ width = 86, height = 32, rotate = -18, className, style }) {
-  return (
-    <svg className={className} style={{ transform: `rotate(${rotate}deg)`, ...style }} width={width} height={height} viewBox="0 0 86 32" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="84" height="30" rx="15" fill="var(--sage)" stroke="var(--accent)" strokeWidth="1.6" />
-      <path d="M43 1H70C78.2843 1 85 7.71573 85 16C85 24.2843 78.2843 31 70 31H43V1Z" fill="var(--accent)" />
-      <ellipse cx="18" cy="9" rx="9" ry="3" fill="var(--bg)" fillOpacity="0.5" />
-    </svg>
-  );
-}
-
-export function PillBottle({ size = 108, className, style }) {
-  const h = Math.round(size * 1.22);
-  return (
-    <svg className={className} style={style} width={size} height={h} viewBox="0 0 100 122" fill="none" aria-hidden="true">
-      <rect x="35" y="2" width="30" height="15" rx="3" fill="var(--accent-hover)" />
-      <line x1="38" y1="6" x2="62" y2="6" stroke="var(--bg)" strokeOpacity="0.45" strokeWidth="1.5" />
-      <line x1="38" y1="10" x2="62" y2="10" stroke="var(--bg)" strokeOpacity="0.45" strokeWidth="1.5" />
-      <line x1="38" y1="14" x2="62" y2="14" stroke="var(--bg)" strokeOpacity="0.45" strokeWidth="1.5" />
-      <rect x="18" y="17" width="64" height="100" rx="16" fill="var(--card)" stroke="var(--accent)" strokeWidth="2.6" />
-      <circle cx="33" cy="40" r="6.5" fill="var(--accent-secondary)" />
-      <circle cx="50" cy="33" r="6.5" fill="var(--accent)" />
-      <circle cx="67" cy="41" r="6.5" fill="var(--accent-secondary)" />
-      <circle cx="42" cy="50" r="6.5" fill="var(--accent)" />
-      <circle cx="59" cy="52" r="6.5" fill="var(--accent-secondary)" />
-      <rect x="25" y="62" width="50" height="28" rx="5" fill="var(--bg)" stroke="var(--accent-secondary)" strokeWidth="2" />
-    </svg>
-  );
-}
-
-export function MedicineBlister({ width = 44, height = 34, className, style }) {
-  return (
-    <svg className={className} style={style} width={width} height={height} viewBox="0 0 44 34" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="42" height="32" rx="6" fill="var(--card)" stroke="var(--line)" strokeWidth="1.4" />
-      {[0, 1].map((r) => (
-        <g key={r}>
-          {[0, 1, 2, 3].map((c) => (
-            <circle key={c} cx={8 + c * 9.3} cy={10 + r * 13} r="3.1" fill="var(--sage)" stroke="var(--accent)" strokeWidth="1" />
-          ))}
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-export function SachetPack({ width = 38, height = 34, className, style }) {
-  return (
-    <svg className={className} style={style} width={width} height={height} viewBox="0 0 38 34" fill="none" aria-hidden="true">
-      <path d="M4 7h30l-3 25H7L4 7z" fill="var(--accent-soft)" stroke="var(--accent)" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M4 7l4-4h22l4 4" fill="none" stroke="var(--accent)" strokeWidth="1.6" strokeLinejoin="round" />
-      <circle cx="19" cy="19" r="5.5" fill="var(--sage)" />
-      <path d="M16 19h6M19 16v6" stroke="var(--accent)" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function HeartbeatLine({ width = 160, height = 28, color = 'var(--mute-2)', className, style }) {
   return (
     <svg className={className} style={style} width={width} height={height} viewBox="0 0 160 28" fill="none" aria-hidden="true">

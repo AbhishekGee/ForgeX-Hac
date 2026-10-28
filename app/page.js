@@ -2,12 +2,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
 import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash, IconShieldCheck, IconGlobe } from './components/icons.js';
-import { Molecule, PillCapsule, PillBottle, MedicineBlister, SachetPack, Sparkle } from './components/graphics.js';
+import { Molecule } from './components/graphics.js';
 
-function ProductArt({ form, size = 38 }) {
-  if (form === 'Oral rehydration salts') return <SachetPack width={size} height={size * 0.9} />;
-  if (form === 'Capsule') return <PillBottle size={size * 0.85} />;
-  return <MedicineBlister width={size * 1.15} height={size * 0.9} />;
+// Real photos (Unsplash License — free to use), not illustrations, so medicines
+// look like an actual product instead of a flat vector graphic.
+function photoForForm(form) {
+  return form === 'Capsule' ? '/images/capsules.jpg' : '/images/tablets.jpg';
+}
+
+function ProductArt({ form, alt, className }) {
+  return <img src={photoForForm(form)} alt={alt || ''} className={className || 'product-photo'} />;
 }
 
 const CATEGORY_ICON = {
@@ -261,7 +265,7 @@ export default function Patient() {
       <section className="hero">
         <div className="hero-text">
           <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
-          <h1>Medicine, fast. <Sparkle size={22} style={{ verticalAlign: 'text-top' }} /></h1>
+          <h1>Medicine, fast.</h1>
           <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
           <div className="hero-cta-row">
             <button onClick={focusMeds}>Shop medicines <span aria-hidden="true">→</span></button>
@@ -269,7 +273,7 @@ export default function Patient() {
           </div>
         </div>
         <div className="hero-art">
-          <PillBottle size={120} />
+          <img src="/images/hero-pills.jpg" alt="Assorted medicines and a pill bottle" />
         </div>
       </section>
       <div className="why-strip">
@@ -330,11 +334,11 @@ export default function Patient() {
           </div>
 
           <div className="card">
-            <div className="title-row"><h2 style={{ margin: 0 }}>Popular medicines</h2><Sparkle size={14} /></div>
+            <div className="title-row"><h2 style={{ margin: 0 }}>Popular medicines</h2></div>
             <div className="product-grid">
               {CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter).map((p) => (
                 <div key={p.key} className="product-tile" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
-                  <span className="product-tile-thumb"><ProductArt form={p.form} /></span>
+                  <span className="product-tile-thumb"><ProductArt form={p.form} alt={p.name} /></span>
                   <span className="product-tile-name">{p.name}</span>
                   <div className="product-tile-bottom">
                     <span className="product-tile-strength">{p.strength}{p.prescriptionRequired && <span className="rx"> · Rx</span>}</span>
@@ -352,7 +356,7 @@ export default function Patient() {
               const p = CATALOG.find((x) => x.key === openProduct);
               return (
                 <div className="product-detail">
-                  <div className="product-detail-art"><ProductArt form={p.form} size={56} /></div>
+                  <div className="product-detail-art"><ProductArt form={p.form} alt={p.name} className="product-photo-lg" /></div>
                   <dl>
                     <dt>Brand</dt><dd>{p.brand}</dd>
                     <dt>Form</dt><dd>{p.form}</dd>
@@ -384,7 +388,7 @@ export default function Patient() {
           {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
           {meds.map((m, i) => (
             <div className="row" key={i}>
-              <span className="avatar avatar-sm"><PillCapsule width={20} height={8} rotate={-18} /></span>
+              <span className="avatar avatar-sm avatar-photo"><img src="/images/tablets.jpg" alt="" /></span>
               <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
               <div className="qty">
                 <button type="button" className="qty-btn" onClick={() => setQty(i, (m.qty || 1) - 1)} aria-label="Decrease quantity">−</button>
