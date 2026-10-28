@@ -23,6 +23,12 @@ export default function RootLayout({ children }) {
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
+        <div className="bg-canvas" aria-hidden="true">
+          <span className="bg-blob b1" />
+          <span className="bg-blob b2" />
+          <span className="bg-blob b3" />
+          <span className="bg-blob b4" />
+        </div>
         <NavBar />
         <main>{children}</main>
         <footer className="foot">

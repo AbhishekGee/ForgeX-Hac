@@ -1,9 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG } from '../lib/catalog.js';
-import HeroArt from './components/HeroArt.js';
 import { IconBike, IconPackage, IconPharmacy, IconHome } from './components/icons.js';
-import { Molecule, PillCapsule, PillBottle, Sparkle } from './components/graphics.js';
+import { Molecule, PillCapsule, Sparkle } from './components/graphics.js';
 
 const TRACKER_STEPS = [
   { key: 'pharmacy', label: 'Pharmacy', Icon: IconPharmacy },
@@ -170,7 +169,6 @@ export default function Patient() {
   return (
     <>
       <section className="hero">
-        <div className="hero-banner"><HeroArt /></div>
         <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
         <h1>Medicine, fast. <Sparkle size={22} style={{ verticalAlign: 'text-top' }} /></h1>
         <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
@@ -201,8 +199,7 @@ export default function Patient() {
             <button onClick={read} disabled={busy || (!image && !text.trim())}>{busy ? 'Reading…' : 'Continue'}</button>
           </div>
 
-          <div className="card card-decor">
-            <div className="card-decor-corner"><PillBottle size={56} /></div>
+          <div className="card">
             <div className="title-row"><h2 style={{ margin: 0 }}>Frequently searched</h2><Sparkle size={14} /></div>
             <div className="chip-row">
               {CATALOG.map((p) => (

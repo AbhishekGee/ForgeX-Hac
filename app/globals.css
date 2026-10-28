@@ -40,6 +40,34 @@ body {
   letter-spacing: -0.011em;
 }
 
+/* Full-page animated background: runs behind every screen, every page. */
+.bg-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: var(--bg);
+}
+.bg-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+.bg-blob.b1 { width: 620px; height: 620px; left: -160px; top: -180px; background: var(--sage); opacity: 1; animation: drift1 28s ease-in-out infinite alternate; }
+.bg-blob.b2 { width: 540px; height: 540px; right: -140px; top: 2%; background: var(--accent-secondary); opacity: 0.3; animation: drift2 34s ease-in-out infinite alternate; }
+.bg-blob.b3 { width: 580px; height: 580px; left: 4%; bottom: -220px; background: var(--accent); opacity: 0.22; animation: drift3 40s ease-in-out infinite alternate; }
+.bg-blob.b4 { width: 440px; height: 440px; right: 10%; bottom: -140px; background: var(--sage); opacity: 0.9; animation: drift4 24s ease-in-out infinite alternate; }
+
+@keyframes drift1 { from { transform: translate(0, 0) scale(1); } to { transform: translate(70px, 60px) scale(1.18); } }
+@keyframes drift2 { from { transform: translate(0, 0) scale(1); } to { transform: translate(-60px, 80px) scale(1.1); } }
+@keyframes drift3 { from { transform: translate(0, 0) scale(1); } to { transform: translate(50px, -50px) scale(1.2); } }
+@keyframes drift4 { from { transform: translate(0, 0) scale(1); } to { transform: translate(-40px, -40px) scale(1.14); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-blob { animation: none; }
+}
+
 /* Nav */
 .nav {
   position: sticky;
@@ -198,20 +226,6 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
 .metric-val { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
 .metric-label { font-size: 12px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.03em; }
 
-.hero-banner {
-  background:
-    radial-gradient(circle at 12% 18%, var(--accent-soft) 0, transparent 38%),
-    radial-gradient(circle at 88% 8%, var(--accent-soft) 0, transparent 30%),
-    radial-gradient(circle at 70% 85%, var(--accent-soft) 0, transparent 34%),
-    var(--sage);
-  border-radius: 28px;
-  padding: 20px 16px 0;
-  margin-bottom: 20px;
-  overflow: hidden;
-  animation: riseIn .6s var(--ease);
-}
-.hero-banner svg { display: block; width: 100%; height: auto; }
-
 .express-badge {
   display: inline-flex;
   align-items: center;
@@ -255,8 +269,6 @@ button.qty-btn:hover:not(:disabled) { background: var(--card); }
 .trust-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .trust-item span { font-size: 13px; font-weight: 600; color: var(--mute); line-height: 1.3; }
 
-.card-decor { position: relative; }
-.card-decor-corner { position: absolute; top: -14px; right: 18px; opacity: 0.9; }
 .title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
