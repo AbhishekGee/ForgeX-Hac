@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
-import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash } from './components/icons.js';
+import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash, IconShieldCheck, IconGlobe } from './components/icons.js';
 import { Molecule, PillCapsule, Sparkle } from './components/graphics.js';
 
 const CATEGORY_ICON = {
@@ -10,6 +10,13 @@ const CATEGORY_ICON = {
   'Rehydration': IconDroplet,
   'Infection': IconThermometer,
 };
+
+const WHY_ITEMS = [
+  { Icon: IconBike, label: 'Fast delivery', sub: 'Express, to your door' },
+  { Icon: IconShieldCheck, label: 'Verified stock', sub: 'Checked with the pharmacy live' },
+  { Icon: Molecule, label: 'AI-read prescriptions', sub: 'Type it or snap a photo' },
+  { Icon: IconGlobe, label: 'English & हिन्दी', sub: 'Dosage info, your language' },
+];
 
 const TRACKER_STEPS = [
   { key: 'pharmacy', label: 'Pharmacy', Icon: IconPharmacy },
@@ -228,6 +235,19 @@ export default function Patient() {
     setMeds(meds.map((x, j) => (j === i ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x)));
   }
 
+  function focusMeds() {
+    setStage('input');
+    requestAnimationFrame(() => {
+      document.getElementById('meds-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('meds')?.focus();
+    });
+  }
+
+  function openPrescriptionUpload() {
+    setStage('input');
+    requestAnimationFrame(() => fileRef.current?.click());
+  }
+
   const stepIdx = { input: 0, confirm: 0, results: 1 }[stage];
 
   return (
@@ -236,12 +256,18 @@ export default function Patient() {
         <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
         <h1>Medicine, fast. <Sparkle size={22} style={{ verticalAlign: 'text-top' }} /></h1>
         <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
-        <span className="express-badge"><IconBike size={14} /> Express delivery</span>
+        <div className="hero-cta-row">
+          <button onClick={focusMeds}>Shop medicines <span aria-hidden="true">→</span></button>
+          <button className="ghost" onClick={openPrescriptionUpload}>Upload prescription <span aria-hidden="true">↑</span></button>
+        </div>
       </section>
-      <div className="trust-strip">
-        <div className="trust-item"><Molecule size={30} /><span>AI-read prescriptions</span></div>
-        <div className="trust-item"><PillCapsule width={52} height={19} rotate={-14} /><span>Verified medicine &amp; pharmacies</span></div>
-        <div className="trust-item"><IconBike size={26} /><span>Express delivery</span></div>
+      <div className="why-strip">
+        {WHY_ITEMS.map(({ Icon, label, sub }) => (
+          <div className="why-item" key={label}>
+            <span className="why-icon"><Icon size={20} /></span>
+            <div><strong>{label}</strong><span>{sub}</span></div>
+          </div>
+        ))}
       </div>
       <ol className="steps">
         {['Your medicine', 'Choose a pharmacy'].map((s, i) => <li key={s} className={i === stepIdx ? 'on' : ''}>{s}</li>)}
@@ -250,7 +276,7 @@ export default function Patient() {
 
       {stage === 'input' && (
         <>
-          <div className="card">
+          <div className="card" id="meds-card">
             <label htmlFor="meds">Type medicine names (comma or new line)</label>
             <textarea id="meds" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paracetamol 500, ORS" disabled={Boolean(image)} />
             <p className="muted">or photograph your prescription</p>
@@ -324,6 +350,14 @@ export default function Patient() {
                   </dl>
                   <div className="row" style={{ marginTop: 12, marginBottom: 0 }}>
                     <button onClick={() => addFromCatalog(p)}>Add to cart</button>
+                  </div>
+                  <p className="muted" style={{ fontWeight: 600, margin: '16px 0 8px' }}>You may also like</p>
+                  <div className="chip-row">
+                    {CATALOG.filter((x) => x.key !== p.key).slice(0, 3).map((x) => (
+                      <button key={x.key} type="button" className="chip" onClick={() => addFromCatalog(x)}>
+                        {x.name} {x.strength}
+                      </button>
+                    ))}
                   </div>
                 </div>
               );
@@ -454,9 +488,12 @@ export default function Patient() {
                           <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
                           <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
                           <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>Order timeline</p>
-                          <ul className="items">
+                          <ul className="order-timeline">
                             {order.history.map((h, i) => (
-                              <li key={i}><span>{HISTORY_LABEL[h.status] || h.status}</span><span className="muted">{new Date(h.at).toLocaleTimeString()}</span></li>
+                              <li key={i}>
+                                <span className="ot-label">{HISTORY_LABEL[h.status] || h.status}</span>
+                                <span className="ot-time">{new Date(h.at).toLocaleTimeString()}</span>
+                              </li>
                             ))}
                           </ul>
                           {info && (

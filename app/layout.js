@@ -1,6 +1,14 @@
 import './globals.css';
 import NavBar from './components/NavBar.js';
 import NeuralBackground from './components/NeuralBackground.js';
+import { IconShieldCheck, IconWallet, IconPharmacy, IconGlobe } from './components/icons.js';
+
+const FOOT_FEATURES = [
+  { Icon: IconShieldCheck, label: 'Pharmacist checked', sub: 'Every prescription reviewed' },
+  { Icon: IconWallet, label: 'Pay on delivery', sub: 'No card needed (demo)' },
+  { Icon: IconPharmacy, label: 'Verified pharmacies', sub: '5 demo partners nearby' },
+  { Icon: IconGlobe, label: 'English & हिन्दी', sub: 'Dosage info, your language' },
+];
 
 export const metadata = {
   title: 'PharmFetch',
@@ -34,6 +42,15 @@ export default function RootLayout({ children }) {
         <NavBar />
         <main>{children}</main>
         <footer className="foot">
+          <div className="foot-features">
+            {FOOT_FEATURES.map(({ Icon, label, sub }) => (
+              <div className="foot-feature" key={label}>
+                <span className="foot-feature-icon"><Icon size={20} /></span>
+                <strong>{label}</strong>
+                <span>{sub}</span>
+              </div>
+            ))}
+          </div>
           <p>Prototype marketplace with invented pharmacies, riders and demo data. Not medical advice.</p>
           <p>A pharmacist must check every prescription before anything is handed over.</p>
         </footer>
