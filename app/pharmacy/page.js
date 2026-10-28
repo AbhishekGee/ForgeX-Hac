@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { IconPharmacy } from '../components/icons.js';
+import { Molecule } from '../components/graphics.js';
 
 async function api(path, body) {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : undefined);
@@ -74,7 +75,7 @@ export default function Pharmacy() {
         <>
           <div className="card">
             <div className="shop">
-              <h2>Licence &amp; verification</h2>
+              <div className="title-row" style={{ margin: 0 }}><Molecule size={26} /><h2 style={{ margin: 0 }}>Licence &amp; verification</h2></div>
               {data.verified ? <span className="verify-badge">Verified</span> : <span className="pill wait">Pending verification</span>}
             </div>
             <p className="muted">Licence {data.licenceNo || 'not on file'} · {data.pharmacistName || 'No registered pharmacist on file'}</p>

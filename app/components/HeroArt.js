@@ -7,7 +7,35 @@ export default function HeroArt() {
       <g fill="var(--card)" opacity="0.55">
         <ellipse cx="95" cy="40" rx="30" ry="16" />
         <ellipse cx="118" cy="50" rx="20" ry="12" />
-        <ellipse cx="300" cy="38" rx="24" ry="13" />
+      </g>
+
+      {/* molecule motifs */}
+      <g stroke="var(--accent-secondary)" strokeWidth="1.6" opacity="0.8">
+        <line x1="198" y1="34" x2="188" y2="22" />
+        <line x1="198" y1="34" x2="210" y2="24" />
+        <line x1="198" y1="34" x2="202" y2="48" />
+      </g>
+      <circle cx="198" cy="34" r="4" fill="var(--accent-secondary)" />
+      <circle cx="188" cy="22" r="2.6" fill="var(--card)" stroke="var(--accent-secondary)" strokeWidth="1.6" />
+      <circle cx="210" cy="24" r="2.6" fill="var(--card)" stroke="var(--accent-secondary)" strokeWidth="1.6" />
+      <circle cx="202" cy="48" r="2.6" fill="var(--card)" stroke="var(--accent-secondary)" strokeWidth="1.6" />
+
+      <g stroke="var(--accent)" strokeWidth="1.4" opacity="0.65">
+        <line x1="296" y1="76" x2="288" y2="66" />
+        <line x1="296" y1="76" x2="306" y2="68" />
+      </g>
+      <circle cx="296" cy="76" r="3.4" fill="var(--accent)" opacity="0.65" />
+      <circle cx="288" cy="66" r="2.2" fill="var(--card)" stroke="var(--accent)" strokeWidth="1.4" opacity="0.65" />
+      <circle cx="306" cy="68" r="2.2" fill="var(--card)" stroke="var(--accent)" strokeWidth="1.4" opacity="0.65" />
+
+      {/* sparkles */}
+      <path d="M262 30C262 34 263 36 267 37C263 38 262 40 262 44C262 40 261 38 257 37C261 36 262 34 262 30Z" fill="var(--accent-secondary)" opacity="0.8" />
+      <path d="M58 84C58 87 59 88 62 89C59 90 58 91 58 94C58 91 57 90 54 89C57 88 58 87 58 84Z" fill="var(--accent)" opacity="0.6" />
+
+      {/* floating capsule */}
+      <g transform="translate(244,42) rotate(-24)">
+        <rect x="0" y="0" width="38" height="14" rx="7" fill="var(--sage)" stroke="var(--accent)" strokeWidth="1.2" />
+        <path d="M19 0H31C34.866 0 38 3.134 38 7C38 10.866 34.866 14 31 14H19V0Z" fill="var(--accent)" />
       </g>
 
       {/* pharmacy badge, top right */}
@@ -26,8 +54,8 @@ export default function HeroArt() {
         <rect x="362" y="180" width="18" height="38" rx="3" />
       </g>
 
-      {/* road */}
-      <path d="M10 206Q200 224 390 206" stroke="var(--mute-2)" strokeWidth="3" strokeDasharray="2 11" strokeLinecap="round" opacity="0.55" />
+      {/* route, drawn as a heartbeat */}
+      <path d="M10 206H64L76 190L90 222L102 198L112 206H390" stroke="var(--accent-secondary)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.65" />
 
       {/* speed lines */}
       <g stroke="var(--mute-2)" strokeWidth="3.6" strokeLinecap="round" opacity="0.55">

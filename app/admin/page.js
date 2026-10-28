@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { Molecule } from '../components/graphics.js';
 
 async function fetchAdmin(pin) {
   const res = await fetch('/api/admin', { headers: pin ? { 'x-admin-pin': pin } : {} });
@@ -51,7 +52,7 @@ export default function Admin() {
   return (
     <>
       <section className="hero">
-        <span className="eyebrow">Marketplace admin</span>
+        <span className="eyebrow"><Molecule size={14} /> Marketplace admin</span>
         <h1>Admin.</h1>
         <p className="sub">Operations and metrics across every pharmacy, rider and order. Demo data only.</p>
       </section>
