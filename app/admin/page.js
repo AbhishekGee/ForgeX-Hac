@@ -51,7 +51,7 @@ export default function Admin() {
   }, [unlocked, pin]);
 
   return (
-    <>
+    <div className="page-narrow">
       <section className="hero">
         <span className="eyebrow"><Molecule size={14} /> Marketplace admin</span>
         <h1>Admin.</h1>
@@ -160,6 +160,6 @@ export default function Admin() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

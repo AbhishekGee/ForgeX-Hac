@@ -55,7 +55,7 @@ export default function Pharmacy() {
   const shopMeta = meta.shops.find((s) => s.id === shopId);
 
   return (
-    <>
+    <div className="page-narrow">
       <section className="hero">
         <span className="eyebrow"><IconPharmacy size={14} /> Pharmacy console</span>
         <h1>Pharmacy.</h1>
@@ -171,6 +171,6 @@ export default function Pharmacy() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

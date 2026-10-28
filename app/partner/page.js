@@ -40,7 +40,7 @@ export default function Partner() {
   const partnerMeta = meta.partners.find((p) => p.id === partnerId);
 
   return (
-    <>
+    <div className="page-narrow">
       <section className="hero">
         <span className="eyebrow"><IconBike size={14} /> Delivery console</span>
         <h1>Delivery partner.</h1>
@@ -104,6 +104,6 @@ export default function Partner() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

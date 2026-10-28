@@ -1,19 +1,27 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
-import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash, IconShieldCheck, IconGlobe } from './components/icons.js';
-import { Molecule } from './components/graphics.js';
+import {
+  IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer,
+  IconTrash, IconShieldCheck, IconGlobe, IconWallet, IconSearch, IconUpload, IconCart,
+} from './components/icons.js';
 import { partnerPhoto } from '../lib/people.js';
 
-// Real photos (Unsplash License — free to use), not illustrations, so medicines
-// look like an actual product instead of a flat vector graphic.
-function photoForForm(form) {
-  return form === 'Capsule' ? '/images/capsules.jpg' : '/images/tablets.jpg';
+// Real photos (Unsplash License — free to use), one per medicine so the shelf isn't repetitive.
+const PRODUCT_PHOTO = {
+  paracetamol: '/images/med-blister-hand.jpg',
+  ibuprofen: '/images/med-strips-orange.jpg',
+  ors: '/images/med-water.jpg',
+  cetirizine: '/images/med-strips-assorted.jpg',
+  azithromycin: '/images/tablets.jpg',
+  amoxicillin: '/images/med-capsule-blister.jpg',
+};
+
+function productPhoto(key) {
+  return PRODUCT_PHOTO[key] || '/images/tablets.jpg';
 }
 
-function ProductArt({ form, alt, className }) {
-  return <img src={photoForForm(form)} alt={alt || ''} className={className || 'product-photo'} />;
-}
+const FORM_TAG = { 'Oral rehydration salts': 'Sachet' };
 
 const CATEGORY_ICON = {
   'Pain relief': IconTablet,
@@ -23,10 +31,10 @@ const CATEGORY_ICON = {
 };
 
 const WHY_ITEMS = [
-  { Icon: IconBike, label: 'Fast delivery', sub: 'Express, to your door' },
-  { Icon: IconShieldCheck, label: 'Verified stock', sub: 'Checked with the pharmacy live' },
-  { Icon: Molecule, label: 'AI-read prescriptions', sub: 'Type it or snap a photo' },
-  { Icon: IconGlobe, label: 'English & हिन्दी', sub: 'Dosage info, your language' },
+  { Icon: IconPharmacy, label: 'Real pharmacies, no warehouses', sub: 'Orders come from a licensed chemist near you' },
+  { Icon: IconWallet, label: 'Compare before you pay', sub: 'See every nearby price, pick the best one' },
+  { Icon: IconShieldCheck, label: 'A pharmacist on every order', sub: 'Prescriptions checked before packing' },
+  { Icon: IconGlobe, label: 'English & हिन्दी', sub: 'Dosage guidance in your language' },
 ];
 
 const TRACKER_STEPS = [
@@ -104,46 +112,81 @@ async function api(path, body) {
   return data;
 }
 
+function Stepper({ qty, onChange, label }) {
+  return (
+    <div className="qty">
+      <button type="button" className="qty-btn" onClick={() => onChange(-1)} aria-label={`Remove one ${label}`}>−</button>
+      <span className="qty-val">{qty}</span>
+      <button type="button" className="qty-btn" onClick={() => onChange(1)} aria-label={`Add one more ${label}`}>+</button>
+    </div>
+  );
+}
+
 export default function Patient() {
   const [stage, setStage] = useState('input');
-  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
   const [image, setImage] = useState(null);
   const [meds, setMeds] = useState([]);
   const [shops, setShops] = useState([]);
   const [flags, setFlags] = useState({ blocked: [], needsPrescription: [] });
+  const [market, setMarket] = useState(null);
   const [orders, setOrders] = useState([]);
   const [barOpen, setBarOpen] = useState(false);
   const [lang, setLang] = useState('en');
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [openProduct, setOpenProduct] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState(null);
   const fileRef = useRef(null);
   const hasRx = Boolean(image);
 
-  async function read() {
+  function goTo(next) {
+    setError('');
+    setStage(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  useEffect(() => {
+    api('/api/market').then(setMarket).catch(() => {});
+  }, []);
+
+  // In-page links like /#pharmacies only change the hash, so bring the storefront back first.
+  useEffect(() => {
+    const onHash = () => {
+      setStage('input');
+      requestAnimationFrame(() => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' }));
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  async function read(input) {
     setError(''); setBusy(true);
     try {
-      const out = await api('/api/extract', image ? { imageDataUrl: image } : { text });
-      if (!out.medicines.length) throw new Error(out.legible === false ? 'We could not read that photo. Retake it or type the names.' : 'No medicines found.');
-      setMeds(out.medicines.map((m) => ({ name: m.name + (m.strength ? ' ' + m.strength : ''), confidence: m.confidence, qty: 1 })));
+      const out = await api('/api/extract', input);
+      if (!out.medicines.length) throw new Error(out.legible === false ? 'We could not read that photo. Retake it or type the names.' : 'No medicines found. Try another name.');
+      const found = out.medicines.map((m) => ({ name: m.name + (m.strength ? ' ' + m.strength : ''), confidence: m.confidence, qty: 1 }));
+      setMeds((prev) => [...prev, ...found]);
       setReview(out.needsReview);
-      setStage('confirm');
+      setQuery('');
+      goTo('confirm');
     } catch (e) { setError(e.message); }
     setBusy(false);
   }
 
-  function addFromCatalog(p) {
-    setMeds([...meds, { name: `${p.name} ${p.strength}`, confidence: 1, qty: 1 }]);
-    setOpenProduct(null);
-    setStage('confirm');
+  function changeCatalogQty(p, delta) {
+    setMeds((prev) => {
+      const i = prev.findIndex((m) => m.key === p.key);
+      if (i === -1) return delta > 0 ? [...prev, { key: p.key, name: `${p.name} ${p.strength}`, confidence: 1, qty: 1 }] : prev;
+      const qty = (prev[i].qty || 1) + delta;
+      if (qty <= 0) return prev.filter((_, j) => j !== i);
+      return prev.map((m, j) => (j === i ? { ...m, qty: Math.min(20, qty) } : m));
+    });
   }
 
   async function search() {
     const items = meds.map((m) => ({ name: m.name.trim(), qty: m.qty || 1 })).filter((m) => m.name);
     if (!items.length) return;
-    setError('');
     try {
       const out = await api('/api/search', { items, hasPrescription: hasRx });
       setShops(out.shops); setFlags({ blocked: out.blocked, needsPrescription: out.needsPrescription });
@@ -151,11 +194,18 @@ export default function Patient() {
     } catch (e) { setError(e.message); }
   }
 
+  async function compare() {
+    setError('');
+    await search();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   useEffect(() => {
     if (stage !== 'results') return;
     const t = setInterval(search, 4000);
     return () => clearInterval(t);
-  }, [stage, meds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, meds, image]);
 
   async function place(shop) {
     setBusy(true); setError('');
@@ -169,15 +219,14 @@ export default function Patient() {
         return next;
       });
       setBarOpen(true);
-      // Go back to a clean search instead of locking the page to this order,
-      // so another order can be placed while this one is being delivered.
-      setStage('input'); setMeds([]); setShops([]); setText(''); setImage(null);
+      // Back to a clean storefront, so another order can be placed while this one is delivered.
+      setMeds([]); setShops([]); setImage(null);
+      goTo('input');
     } catch (e) { setError(e.message); search(); }
     setBusy(false);
   }
 
-  // Restore any orders placed earlier, so leaving for /pharmacy, /partner or /admin
-  // and coming back still shows them, without taking over the page or blocking a new search.
+  // Restore orders placed earlier, so leaving for another page and coming back still shows them.
   useEffect(() => {
     let ids = [];
     try {
@@ -237,209 +286,263 @@ export default function Patient() {
     setOrders(updated);
   }
 
+  // On the storefront a photo is read for medicines; on the price page it is only
+  // attached as proof for prescription-only items already in the cart.
   async function pick(e) {
     const f = e.target.files?.[0];
-    if (f) setImage(await downscale(f));
+    e.target.value = '';
+    if (!f) return;
+    const dataUrl = await downscale(f);
+    setImage(dataUrl);
+    if (stage === 'input') read({ imageDataUrl: dataUrl });
   }
 
   function setQty(i, qty) {
     setMeds(meds.map((x, j) => (j === i ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x)));
   }
 
-  function focusMeds() {
-    setStage('input');
-    requestAnimationFrame(() => {
-      document.getElementById('meds-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      document.getElementById('meds')?.focus();
-    });
-  }
-
-  function openPrescriptionUpload() {
-    setStage('input');
-    requestAnimationFrame(() => fileRef.current?.click());
-  }
-
-  const stepIdx = { input: 0, confirm: 0, results: 1 }[stage];
+  const cartCount = meds.reduce((n, m) => n + (m.qty || 1), 0);
+  const showCartBar = stage === 'input' && cartCount > 0;
+  const products = CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter);
+  const orderable = shops.filter((s) => s.open && s.allAvailable);
+  const lowest = orderable.length ? Math.min(...orderable.map((s) => s.total)) : null;
+  const nearestId = orderable.length ? orderable.reduce((a, b) => (a.distanceKm <= b.distanceKm ? a : b)).id : null;
 
   return (
     <>
-      <section className="hero">
-        <div className="hero-text">
-          <span className="eyebrow">Hyperlocal pharmacy marketplace</span>
-          <h1>Medicine, fast.</h1>
-          <p className="sub">See which open pharmacy near you has your medicine, and the price, before you leave home.</p>
-          <div className="hero-cta-row">
-            <button onClick={focusMeds}>Shop medicines <span aria-hidden="true">→</span></button>
-            <button className="ghost" onClick={openPrescriptionUpload}>Upload prescription <span aria-hidden="true">↑</span></button>
-          </div>
-        </div>
-        <div className="hero-art">
-          <img src="/images/hero-pills.jpg" alt="Assorted medicines and a pill bottle" />
-        </div>
-      </section>
-      <div className="why-strip">
-        {WHY_ITEMS.map(({ Icon, label, sub }) => (
-          <div className="why-item" key={label}>
-            <span className="why-icon"><Icon size={20} /></span>
-            <div><strong>{label}</strong><span>{sub}</span></div>
-          </div>
-        ))}
-      </div>
-      <ol className="steps">
-        {['Your medicine', 'Choose a pharmacy'].map((s, i) => <li key={s} className={i === stepIdx ? 'on' : ''}>{s}</li>)}
-      </ol>
-      {error && <div className="err">{error}</div>}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pick} hidden />
 
       {stage === 'input' && (
         <>
-          <div className="card" id="meds-card">
-            <label htmlFor="meds">Type medicine names (comma or new line)</label>
-            <textarea id="meds" value={text} onChange={(e) => setText(e.target.value)} placeholder="Paracetamol 500, ORS" disabled={Boolean(image)} />
-            <p className="muted">or photograph your prescription</p>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pick} hidden />
-            <div className="row">
-              <button className="ghost" onClick={() => fileRef.current.click()}>{image ? 'Retake photo' : 'Take or choose photo'}</button>
-              {image && <button className="ghost" onClick={() => setImage(null)}>Remove</button>}
+          <section className="store-hero">
+            <div className="store-hero-text">
+              <span className="eyebrow">Your neighbourhood pharmacies, online</span>
+              <h1>Medicines from pharmacies near you, <span className="accent">delivered.</span></h1>
+              <p className="sub">We check live stock and prices at verified chemists around you, so you get the best price from the nearest shop that has it. No warehouse in between.</p>
+              <form className="search" onSubmit={(e) => { e.preventDefault(); if (query.trim()) read({ text: query }); }}>
+                <IconSearch size={20} className="search-icon" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search medicines, e.g. Dolo 650, ORS"
+                  aria-label="Search medicines"
+                />
+                <button type="submit" disabled={busy || !query.trim()}>{busy ? 'Searching…' : 'Search'}</button>
+              </form>
+              <div className="hero-actions">
+                <button type="button" className="ghost" onClick={() => fileRef.current?.click()} disabled={busy}>
+                  <IconUpload size={17} /> Upload prescription
+                </button>
+                <span className="muted">AI reads it, a pharmacist checks it</span>
+              </div>
+              {image && <p className="rx-attached">Prescription attached · <button type="button" className="link-btn" onClick={() => setImage(null)}>Remove</button></p>}
+              {error && <div className="err" style={{ marginTop: 16 }}>{error}</div>}
+              <div className="hero-stats">
+                <div><strong>{market ? market.shops.length : '–'}</strong><span>partner pharmacies</span></div>
+                <div><strong>{market ? market.shops.filter((s) => s.open).length : '–'}</strong><span>open right now</span></div>
+                <div><strong>Live</strong><span>stock & prices</span></div>
+              </div>
             </div>
-            {image && <img src={image} alt="Your prescription" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginBottom: 8 }} />}
-            <button onClick={read} disabled={busy || (!image && !text.trim())}>{busy ? 'Reading…' : 'Continue'}</button>
+            <div className="store-hero-art">
+              <img src="/images/hero-pills.jpg" alt="Assorted medicines and a pill bottle" />
+            </div>
+          </section>
+
+          <div className="cat-pills" role="group" aria-label="Filter by category">
+            <button type="button" className={'cat-pill' + (!categoryFilter ? ' on' : '')} onClick={() => setCategoryFilter(null)}>All medicines</button>
+            {CATEGORIES.map((c) => {
+              const Icon = CATEGORY_ICON[c];
+              const on = categoryFilter === c;
+              return (
+                <button key={c} type="button" className={'cat-pill' + (on ? ' on' : '')} onClick={() => setCategoryFilter(on ? null : c)}>
+                  <Icon size={16} /> {c}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="promo-banner">
-            <div className="promo-icon"><IconBike size={22} /></div>
-            <div className="promo-text">
-              <strong>Free express delivery</strong>
-              <span>On your first order today, no code needed</span>
+          <section className="section">
+            <div className="section-head">
+              <div>
+                <h2>Popular medicines</h2>
+                <p className="muted">Lowest live price across partner pharmacies near you</p>
+              </div>
             </div>
-          </div>
-
-          <div className="card">
-            <div className="title-row"><h2 style={{ margin: 0 }}>Browse by category</h2></div>
-            <div className="category-grid">
-              {CATEGORIES.map((c) => {
-                const Icon = CATEGORY_ICON[c];
-                const on = categoryFilter === c;
+            <div className="pcard-grid">
+              {products.map((p) => {
+                const price = market?.prices?.[p.key];
+                const qty = meds.find((m) => m.key === p.key)?.qty || 0;
                 return (
-                  <button
-                    key={c}
-                    type="button"
-                    className={'category-tile' + (on ? ' on' : '')}
-                    onClick={() => setCategoryFilter(on ? null : c)}
-                  >
-                    <span className="category-tile-icon"><Icon size={22} /></span>
-                    {c}
-                  </button>
+                  <article className="pcard" key={p.key}>
+                    <div className="pcard-media">
+                      <img src={productPhoto(p.key)} alt={p.name} />
+                      {p.prescriptionRequired && <span className="pcard-rx">Rx</span>}
+                    </div>
+                    <div className="pcard-body">
+                      <span className="pcard-tag">{FORM_TAG[p.form] || p.form}</span>
+                      <h3 className="pcard-name">{p.name} {p.strength}</h3>
+                      <p className="pcard-meta">{p.brand} · {p.packSize}</p>
+                      <div className="pcard-foot">
+                        <div className="pcard-price">
+                          {!market && <span className="pcard-avail">Checking prices…</span>}
+                          {market && price && (
+                            <>
+                              <span className="pcard-from">from</span> <strong>₹{price.from}</strong>
+                              <span className="pcard-avail"> · {price.count} {price.count > 1 ? 'pharmacies' : 'pharmacy'}</span>
+                            </>
+                          )}
+                          {market && !price && <span className="pcard-avail">We&apos;ll ask nearby pharmacies</span>}
+                        </div>
+                        {qty
+                          ? <Stepper qty={qty} label={p.name} onChange={(d) => changeCatalogQty(p, d)} />
+                          : <button type="button" className="pcard-add" onClick={() => changeCatalogQty(p, 1)} aria-label={`Add ${p.name} to cart`}>Add</button>}
+                      </div>
+                    </div>
+                  </article>
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          <div className="card">
-            <div className="title-row"><h2 style={{ margin: 0 }}>Popular medicines</h2></div>
-            <div className="product-grid">
-              {CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter).map((p) => (
-                <div key={p.key} className="product-tile" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
-                  <span className="product-tile-thumb"><ProductArt form={p.form} alt={p.name} /></span>
-                  <span className="product-tile-name">{p.name}</span>
-                  <div className="product-tile-bottom">
-                    <span className="product-tile-strength">{p.strength}{p.prescriptionRequired && <span className="rx"> · Rx</span>}</span>
-                    <button
-                      type="button"
-                      className="product-tile-add"
-                      aria-label={`Add ${p.name} to cart`}
-                      onClick={(e) => { e.stopPropagation(); addFromCatalog(p); }}
-                    >+</button>
+          <section className="rx-banner">
+            <div className="rx-banner-icon"><IconShieldCheck size={26} /></div>
+            <div className="rx-banner-text">
+              <h3>Have a prescription? Just snap it.</h3>
+              <p>Our AI reads it in seconds. A licensed pharmacist checks it before anything is packed.</p>
+            </div>
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}><IconUpload size={17} /> Upload prescription</button>
+          </section>
+
+          <section className="section" id="pharmacies">
+            <div className="section-head">
+              <div>
+                <h2>Partner pharmacies near you</h2>
+                <p className="muted">Licensed local chemists. Your order is packed by one of them, not a warehouse.</p>
+              </div>
+            </div>
+            <div className="pharm-grid">
+              {(market?.shops || []).map((s) => (
+                <article className="pharm-card" key={s.id}>
+                  <div className="pharm-head">
+                    <span className="avatar"><IconPharmacy size={18} /></span>
+                    <div className="pharm-title">
+                      <strong>{s.name}</strong>
+                      <span className="muted">{s.distanceKm} km away</span>
+                    </div>
                   </div>
-                </div>
+                  <div className="pharm-tags">
+                    <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
+                    {s.verified && <span className="verify-badge">Verified</span>}
+                  </div>
+                  <ul className="pharm-meta">
+                    <li>{s.hours}</li>
+                    <li>{s.pharmacist ? `Pharmacist: ${s.pharmacist}` : 'Pharmacist details pending'}</li>
+                    <li>{s.inStockCount} medicines in stock</li>
+                  </ul>
+                </article>
               ))}
             </div>
-            {openProduct && (() => {
-              const p = CATALOG.find((x) => x.key === openProduct);
-              return (
-                <div className="product-detail">
-                  <div className="product-detail-art"><ProductArt form={p.form} alt={p.name} className="product-photo-lg" /></div>
-                  <dl>
-                    <dt>Brand</dt><dd>{p.brand}</dd>
-                    <dt>Form</dt><dd>{p.form}</dd>
-                    <dt>Pack size</dt><dd>{p.packSize}</dd>
-                    <dt>Category</dt><dd>{p.category}</dd>
-                    <dt>Prescription</dt><dd>{p.prescriptionRequired ? 'Required — add a photo first' : 'Not required'}</dd>
-                  </dl>
-                  <div className="row" style={{ marginTop: 12, marginBottom: 0 }}>
-                    <button onClick={() => addFromCatalog(p)}>Add to cart</button>
-                  </div>
-                  <p className="muted" style={{ fontWeight: 600, margin: '16px 0 8px' }}>You may also like</p>
-                  <div className="chip-row">
-                    {CATALOG.filter((x) => x.key !== p.key).slice(0, 3).map((x) => (
-                      <button key={x.key} type="button" className="chip" onClick={() => addFromCatalog(x)}>
-                        {x.name} {x.strength}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
+          </section>
+
+          <section className="why-strip">
+            {WHY_ITEMS.map(({ Icon, label, sub }) => (
+              <div className="why-item" key={label}>
+                <span className="why-icon"><Icon size={20} /></span>
+                <div><strong>{label}</strong><span>{sub}</span></div>
+              </div>
+            ))}
+          </section>
         </>
       )}
 
       {stage === 'confirm' && (
-        <div className="card">
-          <h2>Your cart</h2>
-          {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
-          {meds.map((m, i) => (
-            <div className="row" key={i}>
-              <span className="avatar avatar-sm avatar-photo"><img src="/images/tablets.jpg" alt="" /></span>
-              <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-              <div className="qty">
-                <button type="button" className="qty-btn" onClick={() => setQty(i, (m.qty || 1) - 1)} aria-label="Decrease quantity">−</button>
-                <span className="qty-val">{m.qty || 1}</span>
-                <button type="button" className="qty-btn" onClick={() => setQty(i, (m.qty || 1) + 1)} aria-label="Increase quantity">+</button>
-              </div>
-              {m.confidence < 0.8 && <span className="pill wait">check</span>}
-              <button type="button" className="icon-btn warn" aria-label={`Remove ${m.name || 'item'}`} onClick={() => setMeds(meds.filter((_, j) => j !== i))}><IconTrash size={16} /></button>
-            </div>
-          ))}
-          <div className="row">
-            <button className="ghost" onClick={() => setMeds([...meds, { name: '', confidence: 1, qty: 1 }])}>Add</button>
-            <button className="ghost" onClick={() => setStage('input')}>Back</button>
-            <button onClick={search} disabled={!meds.some((m) => m.name.trim())}>Find pharmacies</button>
+        <div className="page-narrow">
+          <section className="page-head">
+            <button type="button" className="back-link" onClick={() => goTo('input')}>← Continue shopping</button>
+            <h1 className="page-title">Your cart</h1>
+            <p className="muted">Next, we check which nearby pharmacies have these and at what price.</p>
+          </section>
+          {error && <div className="err">{error}</div>}
+          <div className="card">
+            {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
+            {meds.length === 0 && <p className="muted">Your cart is empty.</p>}
+            {meds.map((m, i) => {
+              return (
+                <div className="cart-row" key={i}>
+                  <img className="cart-thumb" src={productPhoto(m.key)} alt="" />
+                  <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value, key: undefined } : x)))} />
+                  <Stepper qty={m.qty || 1} label={m.name || 'item'} onChange={(d) => setQty(i, (m.qty || 1) + d)} />
+                  {m.confidence < 0.8 && <span className="pill wait">check</span>}
+                  <button type="button" className="icon-btn warn" aria-label={`Remove ${m.name || 'item'}`} onClick={() => setMeds(meds.filter((_, j) => j !== i))}><IconTrash size={16} /></button>
+                </div>
+              );
+            })}
+            <button type="button" className="link-btn" onClick={() => setMeds([...meds, { name: '', confidence: 1, qty: 1 }])}>+ Add another medicine</button>
+          </div>
+          <div className="page-actions">
+            <button type="button" onClick={compare} disabled={!meds.some((m) => m.name.trim())}>Compare pharmacy prices →</button>
           </div>
         </div>
       )}
 
       {stage === 'results' && (
-        <>
+        <div className="page-narrow">
+          <section className="page-head">
+            <button type="button" className="back-link" onClick={() => goTo('confirm')}>← Edit cart</button>
+            <h1 className="page-title">Compare pharmacies</h1>
+            <p className="muted">Live stock and prices from partner pharmacies near you. This page updates as pharmacies reply.</p>
+          </section>
+          {error && <div className="err">{error}</div>}
           {flags.blocked.length > 0 && <div className="err">Not sold through this app: {flags.blocked.join(', ')}. Please see a pharmacist in person.</div>}
-          {flags.needsPrescription.length > 0 && <div className="note">{flags.needsPrescription.join(', ')} need a prescription photo. Go back and add one.</div>}
-          <p className="muted">Updates every few seconds as pharmacies reply. Distances are from a demo location.</p>
-          {shops.map((s) => (
-            <div className="card" key={s.id}>
-              <div className="shop">
-                <div className="row" style={{ marginBottom: 0 }}>
-                  <span className="avatar"><IconPharmacy size={18} /></span>
-                  <div>
-                    <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
-                    <div className="muted">{s.distanceKm} km</div>
+          {flags.needsPrescription.length > 0 && (
+            <div className="note note-row">
+              <span>{flags.needsPrescription.join(', ')} {flags.needsPrescription.length > 1 ? 'need' : 'needs'} a prescription photo.</span>
+              <button type="button" className="ghost" onClick={() => fileRef.current?.click()}><IconUpload size={16} /> Attach prescription</button>
+            </div>
+          )}
+          {shops.map((s) => {
+            const waiting = s.items.some((i) => i.status === 'unknown');
+            return (
+              <div className={'card shop-card' + (s.open && s.allAvailable && s.total === lowest ? ' best' : '')} key={s.id}>
+                <div className="shop">
+                  <div className="row" style={{ marginBottom: 0 }}>
+                    <span className="avatar"><IconPharmacy size={18} /></span>
+                    <div>
+                      <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
+                      <div className="muted">{s.distanceKm} km away</div>
+                    </div>
+                  </div>
+                  <div className="shop-badges">
+                    <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
+                    {s.open && s.allAvailable && s.total === lowest && <span className="badge-best">Lowest price</span>}
+                    {s.id === nearestId && <span className="badge-near">Nearest</span>}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                  <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
-                  {s.open && <span className="express-badge"><IconBike size={12} /> Express</span>}
+                <ul className="items">
+                  {s.items.map((i) => { const l = ITEM_LABEL[i.status](i); return <li key={i.key}><span>{i.display}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span className={'pill ' + l.cls}>{l.text}</span></li>; })}
+                </ul>
+                <div className="row" style={{ marginTop: 14, marginBottom: 0 }}>
+                  <button onClick={() => place(s)} disabled={busy || !s.open || !s.allAvailable}>
+                    {!s.open ? 'Closed right now' : s.allAvailable ? `Order from this pharmacy · ₹${s.total}` : waiting ? 'Waiting for the pharmacy to reply' : 'Not everything in stock'}
+                  </button>
                 </div>
               </div>
-              <ul className="items">
-                {s.items.map((i) => { const l = ITEM_LABEL[i.status](i); return <li key={i.key}><span>{i.display}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span className={'pill ' + l.cls}>{l.text}</span></li>; })}
-              </ul>
-              <div className="row" style={{ marginTop: 12 }}>
-                <button onClick={() => place(s)} disabled={busy || !s.open || !s.allAvailable}>
-                  {s.allAvailable ? `Order from this pharmacy · ₹${s.total}` : 'Not everything confirmed yet'}
-                </button>
-              </div>
-            </div>
-          ))}
-          <button className="ghost" onClick={() => setStage('confirm')}>Change medicines</button>
-        </>
+            );
+          })}
+        </div>
+      )}
+
+      {(orders.length > 0 || showCartBar) && <div style={{ height: orders.length && showCartBar ? 160 : 90 }} aria-hidden="true" />}
+
+      {showCartBar && (
+        <div className={'cart-bar' + (orders.length ? ' raised' : '')}>
+          <button type="button" className="cart-bar-summary" onClick={() => goTo('confirm')}>
+            <IconCart size={19} />
+            <span><strong>{cartCount} item{cartCount > 1 ? 's' : ''}</strong> in cart · View</span>
+          </button>
+          <button type="button" className="cart-bar-cta" onClick={compare}>Compare prices →</button>
+        </div>
       )}
 
       {orders.length > 0 && (() => {
@@ -448,7 +551,6 @@ export default function Patient() {
         const BarIcon = (cur >= 0 && TRACKER_STEPS[cur]) ? TRACKER_STEPS[cur].Icon : IconPackage;
         return (
           <>
-            <div style={{ height: 78 }} aria-hidden="true" />
             {barOpen && <div className="order-bar-backdrop" onClick={() => setBarOpen(false)} />}
             <div className="order-bar-wrap">
               <div className={'order-bar' + (barOpen ? ' open' : '')}>
@@ -511,7 +613,7 @@ export default function Patient() {
                             </div>
                           )}
                           <ul className="items">{order.items.map((i) => <li key={i.key}><span>{i.key}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>₹{i.price * i.qty}</span></li>)}</ul>
-                          <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery (demo)</span></p>
+                          <p><strong>Total ₹{order.total}</strong> <span className="muted">· pay the pharmacy or rider on delivery</span></p>
                           <p className="muted" style={{ fontWeight: 600, marginTop: 12 }}>Order timeline</p>
                           <ul className="order-timeline">
                             {order.history.map((h, i) => (
