@@ -1,8 +1,15 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { CATALOG } from '../lib/catalog.js';
-import { IconBike, IconPackage, IconPharmacy, IconHome } from './components/icons.js';
+import { CATALOG, CATEGORIES } from '../lib/catalog.js';
+import { IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer, IconTrash } from './components/icons.js';
 import { Molecule, PillCapsule, Sparkle } from './components/graphics.js';
+
+const CATEGORY_ICON = {
+  'Pain relief': IconTablet,
+  'Allergy': IconLeaf,
+  'Rehydration': IconDroplet,
+  'Infection': IconThermometer,
+};
 
 const TRACKER_STEPS = [
   { key: 'pharmacy', label: 'Pharmacy', Icon: IconPharmacy },
@@ -93,6 +100,7 @@ export default function Patient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [openProduct, setOpenProduct] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState(null);
   const fileRef = useRef(null);
   const hasRx = Boolean(image);
 
@@ -255,13 +263,52 @@ export default function Patient() {
             <button onClick={read} disabled={busy || (!image && !text.trim())}>{busy ? 'Reading…' : 'Continue'}</button>
           </div>
 
+          <div className="promo-banner">
+            <div className="promo-icon"><IconBike size={22} /></div>
+            <div className="promo-text">
+              <strong>Free express delivery</strong>
+              <span>On your first order today, no code needed</span>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="title-row"><h2 style={{ margin: 0 }}>Browse by category</h2></div>
+            <div className="category-grid">
+              {CATEGORIES.map((c) => {
+                const Icon = CATEGORY_ICON[c];
+                const on = categoryFilter === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    className={'category-tile' + (on ? ' on' : '')}
+                    onClick={() => setCategoryFilter(on ? null : c)}
+                  >
+                    <span className="category-tile-icon"><Icon size={22} /></span>
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="card">
             <div className="title-row"><h2 style={{ margin: 0 }}>Frequently searched</h2><Sparkle size={14} /></div>
-            <div className="chip-row">
-              {CATALOG.map((p) => (
-                <button key={p.key} type="button" className="chip" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
-                  {p.name} {p.strength}{p.prescriptionRequired && <span className="rx">· Rx</span>}
-                </button>
+            <div className="product-grid">
+              {CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter).map((p) => (
+                <div key={p.key} className="product-tile" onClick={() => setOpenProduct(openProduct === p.key ? null : p.key)}>
+                  <span className="product-tile-thumb"><PillCapsule width={38} height={14} rotate={-18} /></span>
+                  <span className="product-tile-name">{p.name}</span>
+                  <div className="product-tile-bottom">
+                    <span className="product-tile-strength">{p.strength}{p.prescriptionRequired && <span className="rx"> · Rx</span>}</span>
+                    <button
+                      type="button"
+                      className="product-tile-add"
+                      aria-label={`Add ${p.name} to cart`}
+                      onClick={(e) => { e.stopPropagation(); addFromCatalog(p); }}
+                    >+</button>
+                  </div>
+                </div>
               ))}
             </div>
             {openProduct && (() => {
@@ -291,6 +338,7 @@ export default function Patient() {
           {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
           {meds.map((m, i) => (
             <div className="row" key={i}>
+              <span className="avatar avatar-sm"><PillCapsule width={20} height={8} rotate={-18} /></span>
               <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
               <div className="qty">
                 <button type="button" className="qty-btn" onClick={() => setQty(i, (m.qty || 1) - 1)} aria-label="Decrease quantity">−</button>
@@ -298,7 +346,7 @@ export default function Patient() {
                 <button type="button" className="qty-btn" onClick={() => setQty(i, (m.qty || 1) + 1)} aria-label="Increase quantity">+</button>
               </div>
               {m.confidence < 0.8 && <span className="pill wait">check</span>}
-              <button className="warn" onClick={() => setMeds(meds.filter((_, j) => j !== i))}>Remove</button>
+              <button type="button" className="icon-btn warn" aria-label={`Remove ${m.name || 'item'}`} onClick={() => setMeds(meds.filter((_, j) => j !== i))}><IconTrash size={16} /></button>
             </div>
           ))}
           <div className="row">
@@ -317,9 +365,12 @@ export default function Patient() {
           {shops.map((s) => (
             <div className="card" key={s.id}>
               <div className="shop">
-                <div>
-                  <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
-                  <div className="muted">{s.distanceKm} km</div>
+                <div className="row" style={{ marginBottom: 0 }}>
+                  <span className="avatar"><IconPharmacy size={18} /></span>
+                  <div>
+                    <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
+                    <div className="muted">{s.distanceKm} km</div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
