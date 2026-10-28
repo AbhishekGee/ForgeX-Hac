@@ -1,5 +1,6 @@
 import './globals.css';
 import NavBar from './components/NavBar.js';
+import NeuralBackground from './components/NeuralBackground.js';
 
 export const metadata = {
   title: 'PharmFetch',
@@ -29,6 +30,7 @@ export default function RootLayout({ children }) {
           <span className="bg-blob b3" />
           <span className="bg-blob b4" />
         </div>
+        <NeuralBackground />
         <NavBar />
         <main>{children}</main>
         <footer className="foot">
