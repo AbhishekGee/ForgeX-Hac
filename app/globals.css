@@ -658,3 +658,107 @@ button.order-bar-toggle:active:not(:disabled) { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ------------------------------------------------------------------
+   Glass layer: a soft sage-and-teal ambient background, with the header,
+   cards and tabs as frosted glass over it. Surfaces let the page show
+   through and their shadows are wide and faint, so overlapping pieces
+   look submerged in the background rather than stacked on top of it.
+   ------------------------------------------------------------------ */
+:root {
+  --bg: #e4ece7;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-line: rgba(255, 255, 255, 0.65);
+  --blur: blur(20px) saturate(160%);
+  --sink:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(13, 43, 47, 0.04),
+    0 2px 0 rgba(176, 197, 186, 0.45),
+    0 14px 34px -14px rgba(13, 43, 47, 0.22);
+  --sink-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 3px 0 rgba(176, 197, 186, 0.5),
+    0 22px 44px -16px rgba(13, 43, 47, 0.28);
+  --sink-sm:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 2px 0 rgba(176, 197, 186, 0.45),
+    0 8px 16px -8px rgba(13, 43, 47, 0.2);
+  --well: inset 0 2px 5px rgba(13, 43, 47, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+/* Ambient background the glass sits in */
+body {
+  background:
+    radial-gradient(900px 600px at 8% -5%, rgba(169, 213, 156, 0.55), transparent 60%),
+    radial-gradient(800px 600px at 100% 18%, rgba(23, 102, 106, 0.22), transparent 62%),
+    radial-gradient(900px 700px at 40% 105%, rgba(79, 154, 131, 0.22), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Frosted header: content scrolls underneath and stays faintly visible */
+.hdr {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-bottom: 1px solid var(--glass-line);
+  box-shadow: 0 10px 30px -18px rgba(13, 43, 47, 0.3);
+}
+.hdr-search { background: rgba(255, 255, 255, 0.45); border-color: transparent; box-shadow: var(--well); }
+.hdr-search:focus-within { background: rgba(255, 255, 255, 0.9); border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-50); }
+
+/* Glass cards */
+.board, .pcard, .panel, .shop-card, .card, .metric, .steps li, .ph-card {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sink);
+}
+.shero {
+  background:
+    radial-gradient(820px 420px at 100% 0%, rgba(169, 213, 156, 0.3), transparent 62%),
+    rgba(255, 255, 255, 0.4);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--sink);
+}
+.shero .board { background: var(--glass-strong); }
+.pcard, .ph-card, .shop-card { transition: transform .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease); }
+.pcard:hover, .ph-card:hover, .shop-card:hover { transform: translateY(-3px); background: var(--glass-strong); box-shadow: var(--sink-hover); border-color: var(--glass-line); }
+.shop-card.best { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(232, 244, 234, 0.7), var(--sink); }
+.shop-card.dim { background: rgba(255, 255, 255, 0.38); }
+.board-item, .board-list li.best { background: rgba(228, 236, 231, 0.6); box-shadow: var(--well); }
+.board-list li.best { background: rgba(232, 244, 234, 0.75); }
+.pcard-media { background: rgba(228, 236, 231, 0.5); }
+
+/* Dark accent panels: a touch of transparency so the background tints through */
+.rx-band { background: radial-gradient(520px 260px at 100% 0%, rgba(185, 223, 169, 0.35), transparent 62%), linear-gradient(120deg, rgba(10, 68, 80, 0.94) 0%, rgba(23, 102, 106, 0.9) 50%, rgba(63, 138, 120, 0.86) 100%); box-shadow: 0 18px 40px -18px rgba(6, 41, 45, 0.45); }
+.promise { background: radial-gradient(600px 240px at 100% 0%, rgba(169, 213, 156, 0.16), transparent 60%), linear-gradient(135deg, rgba(13, 43, 47, 0.93), rgba(15, 74, 79, 0.9)); box-shadow: 0 18px 40px -18px rgba(6, 41, 45, 0.45); }
+
+/* Glass tabs and controls */
+button.cat { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-color: var(--glass-line); box-shadow: var(--sink-sm); transition: transform .15s var(--ease), box-shadow .15s var(--ease), background .2s var(--ease); }
+button.cat:hover:not(:disabled) { background: var(--glass-strong); border-color: var(--glass-line); transform: translateY(-1px); }
+button.cat:active:not(:disabled) { transform: translateY(1px); box-shadow: var(--well); }
+button.cat.on { background: rgba(13, 43, 47, 0.88); border-color: rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 20px -10px rgba(6, 41, 45, 0.55); }
+.seg { background: rgba(255, 255, 255, 0.35); border-color: var(--glass-line); box-shadow: var(--well); }
+.seg button.on, .seg button.on:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); box-shadow: var(--sink-sm); }
+.btn-lg { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 12px 24px -12px rgba(6, 41, 45, 0.55); transition: transform .15s var(--ease), box-shadow .15s var(--ease); }
+.btn-lg:active { transform: translateY(1px); }
+.btn-lg.btn-outline, a.btn-lg.btn-outline, .btn-lg.btn-light { background: var(--glass-strong); border-color: var(--glass-line); box-shadow: var(--sink-sm); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
+button.pcard-add { background: rgba(255, 255, 255, 0.82); border-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--sink-sm); }
+
+/* Floating bars: frosted, so the page stays visible behind them */
+.cart-bar { background: rgba(13, 43, 47, 0.82); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: 0 22px 44px -16px rgba(6, 41, 45, 0.5); }
+.order-bar { background: rgba(255, 255, 255, 0.72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-color: var(--glass-line); box-shadow: 0 -14px 36px -10px rgba(9, 34, 38, 0.22); }
+.ftr { background: rgba(255, 255, 255, 0.4); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-top: 1px solid var(--glass-line); }
+
+/* Fallback where frosted glass is not supported: keep text readable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .hdr, .board, .pcard, .panel, .shop-card, .card, .metric, .steps li, .ph-card, .shero, button.cat, .order-bar, .ftr { background: rgba(255, 255, 255, 0.92); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard:hover, .ph-card:hover, .shop-card:hover, button.cat:hover:not(:disabled), button.cat:active:not(:disabled), .btn-lg:active { transform: none; }
+}
