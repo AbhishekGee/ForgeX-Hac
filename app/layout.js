@@ -3,14 +3,14 @@ import NavBar from './components/NavBar.js';
 import Logo from './components/Logo.js';
 
 export const metadata = {
-  title: 'PharmFetch',
-  description: 'Medicines from licensed pharmacies near you, with live stock and prices, delivered.',
+  title: 'PharmFetch — Medicines from pharmacies near you',
+  description: 'Compare live prices from licensed pharmacies near you and get your medicines delivered.',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'PharmFetch' },
 };
 
 export const viewport = {
-  themeColor: '#155E59',
+  themeColor: '#2547F5',
   width: 'device-width',
   initialScale: 1,
 };
@@ -21,33 +21,34 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
         <NavBar />
         <main>{children}</main>
-        <footer className="foot">
-          <div className="foot-inner">
-            <div className="foot-brand">
+        <footer className="ftr">
+          <div className="ftr-grid">
+            <div className="ftr-brand">
               <a href="/" className="brand" aria-label="PharmFetch — home">
-                <span className="brand-mark" aria-hidden="true"><Logo size={28} /></span>
-                <span className="brand-word" aria-hidden="true"><span>P</span><b>F</b></span>
+                <Logo size={32} />
+                <span className="brand-word" aria-hidden="true">P<b>F</b></span>
               </a>
-              <p>Medicines from licensed pharmacies near you, with live stock and prices, delivered.</p>
+              <p>Live stock and prices from licensed pharmacies near you. Compare, order, and track your delivery in one place.</p>
             </div>
-            <div className="foot-col">
+            <div className="ftr-col">
               <h4>Shop</h4>
               <a href="/">Medicines</a>
               <a href="/#pharmacies">Partner pharmacies</a>
+              <a href="/#how">How it works</a>
             </div>
-            <div className="foot-col">
+            <div className="ftr-col">
               <h4>For business</h4>
               <a href="/pharmacy">Pharmacy console</a>
               <a href="/partner">Delivery console</a>
               <a href="/admin">Admin</a>
             </div>
           </div>
-          <p className="foot-fine">Demo environment: pharmacies, riders and orders shown are sample data. Not medical advice. A pharmacist checks every prescription before anything is handed over.</p>
+          <p className="ftr-fine">Demo environment: pharmacies, riders and orders shown are sample data. Not medical advice. A pharmacist checks every prescription before anything is handed over.</p>
         </footer>
       </body>
     </html>

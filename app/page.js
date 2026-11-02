@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { CATALOG, CATEGORIES } from '../lib/catalog.js';
 import {
   IconBike, IconPackage, IconPharmacy, IconHome, IconTablet, IconDroplet, IconLeaf, IconThermometer,
-  IconTrash, IconShieldCheck, IconGlobe, IconWallet, IconSearch, IconUpload, IconCart,
+  IconTrash, IconShieldCheck, IconWallet, IconSearch, IconUpload, IconCheck, IconClose, IconPin,
 } from './components/icons.js';
 import { partnerPhoto } from '../lib/people.js';
+import { loadCart, saveCart, cartCount } from '../lib/cart.js';
+import { normalise } from '../lib/medicines.js';
 
-// Real photos (Unsplash License — free to use), one per medicine so the shelf isn't repetitive.
+// Real photos (Unsplash License — free to use), one per medicine.
 const PRODUCT_PHOTO = {
   paracetamol: '/images/med-blister-hand.jpg',
   ibuprofen: '/images/med-strips-orange.jpg',
@@ -16,12 +18,10 @@ const PRODUCT_PHOTO = {
   azithromycin: '/images/tablets.jpg',
   amoxicillin: '/images/med-capsule-blister.jpg',
 };
-
-function productPhoto(key) {
-  return PRODUCT_PHOTO[key] || '/images/tablets.jpg';
-}
-
+const productPhoto = (key) => PRODUCT_PHOTO[key] || '/images/tablets.jpg';
 const FORM_TAG = { 'Oral rehydration salts': 'Sachet' };
+const UNIT_WORD = { Tablet: 'tablet', Capsule: 'capsule' };
+const catalogItem = (key) => CATALOG.find((c) => c.key === key);
 
 const CATEGORY_ICON = {
   'Pain relief': IconTablet,
@@ -29,13 +29,6 @@ const CATEGORY_ICON = {
   'Rehydration': IconDroplet,
   'Infection': IconThermometer,
 };
-
-const WHY_ITEMS = [
-  { Icon: IconPharmacy, label: 'Real pharmacies, no warehouses', sub: 'Orders come from a licensed chemist near you' },
-  { Icon: IconWallet, label: 'Compare before you pay', sub: 'See every nearby price, pick the best one' },
-  { Icon: IconShieldCheck, label: 'A pharmacist on every order', sub: 'Prescriptions checked before packing' },
-  { Icon: IconGlobe, label: 'English & हिन्दी', sub: 'Dosage guidance in your language' },
-];
 
 const TRACKER_STEPS = [
   { key: 'pharmacy', label: 'Pharmacy', Icon: IconPharmacy },
@@ -112,19 +105,158 @@ async function api(path, body) {
   return data;
 }
 
-function Stepper({ qty, onChange, label }) {
+function unitPrice(p, price) {
+  if (!price || !p.units || p.units < 2 || !UNIT_WORD[p.form]) return null;
+  return `₹${(price.from / p.units).toFixed(1)}/${UNIT_WORD[p.form]}`;
+}
+
+function Stepper({ qty, onChange, label, compact }) {
   return (
-    <div className="qty">
-      <button type="button" className="qty-btn" onClick={() => onChange(-1)} aria-label={`Remove one ${label}`}>−</button>
+    <div className={'qty' + (compact ? ' qty-compact' : '')}>
+      <button type="button" className="qty-btn" onClick={(e) => { e.stopPropagation(); onChange(-1); }} aria-label={`Remove one ${label}`}>−</button>
       <span className="qty-val">{qty}</span>
-      <button type="button" className="qty-btn" onClick={() => onChange(1)} aria-label={`Add one more ${label}`}>+</button>
+      <button type="button" className="qty-btn" onClick={(e) => { e.stopPropagation(); onChange(1); }} aria-label={`Add one more ${label}`}>+</button>
     </div>
   );
 }
 
-export default function Patient() {
+function Availability({ price }) {
+  if (!price) return <span className="avail avail-none">Available on request</span>;
+  if (!price.openCount) return <span className="avail avail-wait">{price.count} {price.count > 1 ? 'pharmacies' : 'pharmacy'} · closed now</span>;
+  return <span className="avail avail-ok">In stock at {price.openCount} open {price.openCount > 1 ? 'pharmacies' : 'pharmacy'}</span>;
+}
+
+function ProductCard({ p, price, qty, onQty, onOpen }) {
+  const per = unitPrice(p, price);
+  return (
+    <article className="pcard" onClick={onOpen}>
+      <div className="pcard-media">
+        <img src={productPhoto(p.key)} alt={p.name} loading="lazy" />
+        {p.prescriptionRequired && <span className="rx-tag">Rx</span>}
+        <div className="pcard-quick" onClick={(e) => e.stopPropagation()}>
+          {qty
+            ? <Stepper qty={qty} label={p.name} onChange={onQty} compact />
+            : <button type="button" className="pcard-add" onClick={() => onQty(1)} aria-label={`Add ${p.name} to cart`}>Add</button>}
+        </div>
+      </div>
+      <div className="pcard-body">
+        <div className="pcard-tags">
+          <span className="tag">{FORM_TAG[p.form] || p.form}</span>
+          <span className="tag tag-muted">{p.packSize}</span>
+        </div>
+        <h3 className="pcard-name">{p.name} {p.strength}</h3>
+        <p className="pcard-uses">{p.uses.join(' · ')}</p>
+        <div className="pcard-price">
+          {price ? (
+            <>
+              <span className="from">from</span><strong>₹{price.from}</strong>
+              {per && <span className="per">{per}</span>}
+            </>
+          ) : <span className="per">Price on request</span>}
+        </div>
+        <Availability price={price} />
+      </div>
+    </article>
+  );
+}
+
+function MedicineSheet({ p, market, qty, onQty, info, onClose }) {
+  const price = market?.prices?.[p.key];
+  const offers = market?.offers?.[p.key] || [];
+  const spread = price && price.to > price.from ? price.to - price.from : 0;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+  }, [onClose]);
+  return (
+    <div className="sheet-wrap" role="dialog" aria-modal="true" aria-label={`${p.name} ${p.strength}`}>
+      <div className="sheet-backdrop" onClick={onClose} />
+      <aside className="msheet">
+        <button type="button" className="msheet-close" onClick={onClose} aria-label="Close"><IconClose /></button>
+        <div className="msheet-scroll">
+          <div className="msheet-media">
+            <img src={productPhoto(p.key)} alt={p.name} />
+            {p.prescriptionRequired && <span className="rx-tag">Prescription required</span>}
+          </div>
+          <div className="msheet-head">
+            <div className="pcard-tags">
+              <span className="tag">{FORM_TAG[p.form] || p.form}</span>
+              <span className="tag tag-muted">{p.packSize}</span>
+              <span className="tag tag-muted">{p.category}</span>
+            </div>
+            <h2>{p.name} {p.strength}</h2>
+            <p className="muted">{p.brand}</p>
+            <div className="chips">{p.uses.map((u) => <span key={u} className="chip">{u}</span>)}</div>
+          </div>
+
+          <section className="msheet-block">
+            <div className="block-head">
+              <h3>Live prices near you</h3>
+              {spread > 0 && <span className="save-pill">Save up to ₹{spread} by comparing</span>}
+            </div>
+            {!market && <p className="muted">Checking pharmacies…</p>}
+            {market && offers.length === 0 && <p className="muted">No partner pharmacy has listed this yet. Add it to your cart and we&apos;ll ask the open ones nearby.</p>}
+            <ul className="offers">
+              {offers.map((o, i) => (
+                <li key={o.shopId} className={i === 0 && o.open ? 'best' : ''}>
+                  <span className="offer-shop">
+                    <strong>{o.shop}</strong>
+                    <span className="muted">{o.distanceKm} km · <span className={o.open ? 'txt-ok' : 'txt-bad'}>{o.open ? 'Open now' : 'Closed'}</span>{o.verified ? ' · Verified' : ''}</span>
+                  </span>
+                  <span className="offer-price">
+                    {i === 0 && o.open && <span className="badge-best">Best now</span>}
+                    <strong>₹{o.price}</strong>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="msheet-block">
+            <h3>Medicine details</h3>
+            <dl className="facts">
+              <div><dt>Composition</dt><dd>{p.name} ({p.strength})</dd></div>
+              <div><dt>Common brands</dt><dd>{p.brand}</dd></div>
+              <div><dt>Form</dt><dd>{p.form}</dd></div>
+              <div><dt>Pack size</dt><dd>{p.packSize}</dd></div>
+              <div><dt>Prescription</dt><dd>{p.prescriptionRequired ? 'Required — a pharmacist checks it' : 'Not required'}</dd></div>
+            </dl>
+          </section>
+
+          <section className="msheet-block">
+            <h3>About this medicine</h3>
+            {info ? (
+              <>
+                <p>{info.entries[0]?.text}</p>
+                <p className="fine">{info.note}</p>
+              </>
+            ) : <p className="muted">Loading…</p>}
+          </section>
+
+          <ul className="trust-list">
+            <li><IconCheck /> Sold only by licensed partner pharmacies</li>
+            <li><IconCheck /> Prescriptions checked by a pharmacist</li>
+            <li><IconCheck /> Pay the pharmacy or rider on delivery</li>
+          </ul>
+        </div>
+        <div className="msheet-foot">
+          <div>
+            <span className="muted">{price ? 'Lowest price' : 'Price'}</span>
+            <strong>{price ? `₹${price.from}` : 'On request'}</strong>
+          </div>
+          {qty
+            ? <Stepper qty={qty} label={p.name} onChange={onQty} />
+            : <button type="button" className="btn-lg" onClick={() => onQty(1)}>Add to cart</button>}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+export default function Store() {
   const [stage, setStage] = useState('input');
-  const [query, setQuery] = useState('');
   const [image, setImage] = useState(null);
   const [meds, setMeds] = useState([]);
   const [shops, setShops] = useState([]);
@@ -137,7 +269,10 @@ export default function Patient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState(null);
+  const [sheetKey, setSheetKey] = useState(null);
+  const [infoCache, setInfoCache] = useState({});
   const fileRef = useRef(null);
+  const cartLoaded = useRef(false);
   const hasRx = Boolean(image);
 
   function goTo(next) {
@@ -146,8 +281,70 @@ export default function Patient() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // Cart persists across pages; the header reads it from the same store.
+  useEffect(() => {
+    setMeds(loadCart());
+    cartLoaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (cartLoaded.current) saveCart(meds);
+  }, [meds]);
+
   useEffect(() => {
     api('/api/market').then(setMarket).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!sheetKey || infoCache[sheetKey]) return;
+    api('/api/instructions', { keys: [sheetKey], language: 'en' })
+      .then((info) => setInfoCache((c) => ({ ...c, [sheetKey]: info })))
+      .catch(() => {});
+  }, [sheetKey, infoCache]);
+
+  async function read(input) {
+    setError(''); setBusy(true);
+    try {
+      const out = await api('/api/extract', input);
+      if (!out.medicines.length) throw new Error(out.legible === false ? 'We could not read that photo. Retake it or type the names.' : 'No medicines found. Try another name.');
+      // Link recognised medicines to the catalogue (brand names included), and merge
+      // them into existing cart lines instead of adding duplicates.
+      setMeds((prev) => {
+        const next = [...prev];
+        for (const m of out.medicines) {
+          const asked = `${m.name} ${m.strength || ''}`.match(/\d+(\.\d+)?/g) || [];
+          const match = catalogItem(normalise(m.name));
+          // Never swap strengths: "Dolo 650" must not become Paracetamol 500 mg.
+          const ours = match?.strength.match(/\d+(\.\d+)?/g) || [];
+          const cat = match && (!asked.length || !ours.length || asked.includes(ours[0])) ? match : null;
+          const i = cat ? next.findIndex((x) => x.key === cat.key) : -1;
+          if (i !== -1) next[i] = { ...next[i], qty: Math.min(20, (next[i].qty || 1) + 1) };
+          else if (cat) next.push({ key: cat.key, name: `${cat.name} ${cat.strength}`, confidence: m.confidence, qty: 1 });
+          else next.push({ name: m.name + (m.strength ? ' ' + m.strength : ''), confidence: m.confidence, qty: 1 });
+        }
+        return next;
+      });
+      setReview(out.needsReview);
+      goTo('confirm');
+    } catch (e) { setError(e.message); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    setBusy(false);
+  }
+
+  // Header search and cart button talk to this page through window events, and
+  // arrive as ?q= / ?cart=1 when used from another page.
+  useEffect(() => {
+    const onSearch = (e) => read({ text: e.detail });
+    const onCart = () => goTo('confirm');
+    window.addEventListener('pf:search', onSearch);
+    window.addEventListener('pf:open-cart', onCart);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('q')) read({ text: params.get('q') });
+    else if (params.get('cart')) setStage('confirm');
+    if (params.toString()) window.history.replaceState(null, '', '/');
+    return () => {
+      window.removeEventListener('pf:search', onSearch);
+      window.removeEventListener('pf:open-cart', onCart);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // In-page links like /#pharmacies only change the hash, so bring the storefront back first.
@@ -159,20 +356,6 @@ export default function Patient() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-
-  async function read(input) {
-    setError(''); setBusy(true);
-    try {
-      const out = await api('/api/extract', input);
-      if (!out.medicines.length) throw new Error(out.legible === false ? 'We could not read that photo. Retake it or type the names.' : 'No medicines found. Try another name.');
-      const found = out.medicines.map((m) => ({ name: m.name + (m.strength ? ' ' + m.strength : ''), confidence: m.confidence, qty: 1 }));
-      setMeds((prev) => [...prev, ...found]);
-      setReview(out.needsReview);
-      setQuery('');
-      goTo('confirm');
-    } catch (e) { setError(e.message); }
-    setBusy(false);
-  }
 
   function changeCatalogQty(p, delta) {
     setMeds((prev) => {
@@ -286,8 +469,8 @@ export default function Patient() {
     setOrders(updated);
   }
 
-  // On the storefront a photo is read for medicines; on the price page it is only
-  // attached as proof for prescription-only items already in the cart.
+  // On the storefront a photo is read for medicines; elsewhere it is only attached
+  // as proof for prescription-only items already in the cart.
   async function pick(e) {
     const f = e.target.files?.[0];
     e.target.value = '';
@@ -301,12 +484,27 @@ export default function Patient() {
     setMeds(meds.map((x, j) => (j === i ? { ...x, qty: Math.max(1, Math.min(20, qty)) } : x)));
   }
 
-  const cartCount = meds.reduce((n, m) => n + (m.qty || 1), 0);
-  const showCartBar = stage === 'input' && cartCount > 0;
+  const count = cartCount(meds);
+  const showCartBar = stage === 'input' && count > 0;
   const products = CATALOG.filter((p) => !categoryFilter || p.category === categoryFilter);
+  const qtyOf = (key) => meds.find((m) => m.key === key)?.qty || 0;
+
+  // Hero board: the medicine with the most live offers, shown as a real price list.
+  const boardItem = market && [...CATALOG].sort((a, b) => (market.offers[b.key]?.length || 0) - (market.offers[a.key]?.length || 0))[0];
+  const boardOffers = boardItem ? market.offers[boardItem.key] : [];
+
+  // Cart estimate from the lowest live price of items we can price; the rest are priced on comparison.
+  const priced = meds.filter((m) => m.key && market?.prices?.[m.key]);
+  const estimate = priced.reduce((n, m) => n + market.prices[m.key].from * (m.qty || 1), 0);
+  const unpriced = meds.length - priced.length;
+  const rxInCart = meds.some((m) => m.key && catalogItem(m.key)?.prescriptionRequired);
+
   const orderable = shops.filter((s) => s.open && s.allAvailable);
   const lowest = orderable.length ? Math.min(...orderable.map((s) => s.total)) : null;
+  const highest = orderable.length ? Math.max(...orderable.map((s) => s.total)) : null;
+  const bestShop = orderable.find((s) => s.total === lowest);
   const nearestId = orderable.length ? orderable.reduce((a, b) => (a.distanceKm <= b.distanceKm ? a : b)).id : null;
+  const sheetProduct = sheetKey && catalogItem(sheetKey);
 
   return (
     <>
@@ -314,104 +512,118 @@ export default function Patient() {
 
       {stage === 'input' && (
         <>
-          <section className="store-hero">
-            <div className="store-hero-text">
-              <span className="eyebrow">Your neighbourhood pharmacies, online</span>
-              <h1>Medicines from pharmacies near you, <span className="accent">delivered.</span></h1>
-              <p className="sub">We check live stock and prices at verified chemists around you, so you get the best price from the nearest shop that has it. No warehouse in between.</p>
-              <form className="search" onSubmit={(e) => { e.preventDefault(); if (query.trim()) read({ text: query }); }}>
-                <IconSearch size={20} className="search-icon" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search medicines, e.g. Dolo 650, ORS"
-                  aria-label="Search medicines"
-                />
-                <button type="submit" disabled={busy || !query.trim()}>{busy ? 'Searching…' : 'Search'}</button>
-              </form>
-              <div className="hero-actions">
-                <button type="button" className="ghost" onClick={() => fileRef.current?.click()} disabled={busy}>
-                  <IconUpload size={17} /> Upload prescription
+          <section className="shero">
+            <div className="hero-copy">
+              <span className="kicker"><span className="live-dot" /> Live prices from pharmacies near you</span>
+              <h1>Every pharmacy near you. <span>One price list.</span></h1>
+              <p className="lede">We check live stock at licensed chemists around you and show you every price, so you pick the best one. No warehouse, no guesswork.</p>
+              <div className="hero-cta">
+                <button type="button" className="btn-lg" onClick={() => fileRef.current?.click()} disabled={busy}>
+                  <IconUpload size={18} /> {busy ? 'Reading…' : 'Upload prescription'}
                 </button>
-                <span className="muted">AI reads it, a pharmacist checks it</span>
+                <a href="#medicines" className="btn-lg btn-outline">Browse medicines</a>
               </div>
-              {image && <p className="rx-attached">Prescription attached · <button type="button" className="link-btn" onClick={() => setImage(null)}>Remove</button></p>}
+              {image && <p className="rx-attached"><IconCheck /> Prescription attached · <button type="button" className="link-btn" onClick={() => setImage(null)}>Remove</button></p>}
               {error && <div className="err" style={{ marginTop: 16 }}>{error}</div>}
-              <div className="hero-stats">
+              <ul className="hero-trust">
+                <li><IconCheck /> Licensed pharmacies only</li>
+                <li><IconCheck /> Pharmacist-checked prescriptions</li>
+                <li><IconCheck /> Pay on delivery</li>
+              </ul>
+            </div>
+
+            <div className="board" aria-label="Live price comparison">
+              <div className="board-head">
+                <span className="live-dot" />
+                <span>Live comparison</span>
+                <span className="board-loc"><IconPin size={14} /> Connaught Place</span>
+              </div>
+              {boardItem ? (
+                <>
+                  <div className="board-item">
+                    <img src={productPhoto(boardItem.key)} alt="" />
+                    <div>
+                      <strong>{boardItem.name} {boardItem.strength}</strong>
+                      <span>{boardItem.packSize} · {boardOffers.length} pharmacies</span>
+                    </div>
+                  </div>
+                  <ul className="board-list">
+                    {boardOffers.map((o, i) => (
+                      <li key={o.shopId} className={i === 0 && o.open ? 'best' : ''}>
+                        <span className="board-shop">
+                          <strong>{o.shop}</strong>
+                          <span>{o.distanceKm} km · {o.open ? 'Open' : 'Closed'}</span>
+                        </span>
+                        {i === 0 && o.open && <span className="badge-best">Best now</span>}
+                        <span className="board-price">₹{o.price}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button type="button" className="board-cta" onClick={() => setSheetKey(boardItem.key)}>See all details →</button>
+                </>
+              ) : (
+                <div className="board-skel"><span /><span /><span /></div>
+              )}
+              <div className="board-stats">
                 <div><strong>{market ? market.shops.length : '–'}</strong><span>partner pharmacies</span></div>
                 <div><strong>{market ? market.shops.filter((s) => s.open).length : '–'}</strong><span>open right now</span></div>
-                <div><strong>Live</strong><span>stock & prices</span></div>
               </div>
-            </div>
-            <div className="store-hero-art">
-              <img src="/images/hero-pills.jpg" alt="Assorted medicines and a pill bottle" />
             </div>
           </section>
 
-          <div className="cat-pills" role="group" aria-label="Filter by category">
-            <button type="button" className={'cat-pill' + (!categoryFilter ? ' on' : '')} onClick={() => setCategoryFilter(null)}>All medicines</button>
-            {CATEGORIES.map((c) => {
-              const Icon = CATEGORY_ICON[c];
-              const on = categoryFilter === c;
-              return (
-                <button key={c} type="button" className={'cat-pill' + (on ? ' on' : '')} onClick={() => setCategoryFilter(on ? null : c)}>
-                  <Icon size={16} /> {c}
-                </button>
-              );
-            })}
-          </div>
-
-          <section className="section">
+          <section className="section" id="medicines">
             <div className="section-head">
               <div>
-                <h2>Popular medicines</h2>
-                <p className="muted">Lowest live price across partner pharmacies near you</p>
+                <h2>Shop medicines</h2>
+                <p className="muted">Lowest live price across partner pharmacies. Tap a medicine to compare every pharmacy.</p>
               </div>
             </div>
-            <div className="pcard-grid">
-              {products.map((p) => {
-                const price = market?.prices?.[p.key];
-                const qty = meds.find((m) => m.key === p.key)?.qty || 0;
+            <div className="cats" role="group" aria-label="Filter by health concern">
+              <button type="button" className={'cat' + (!categoryFilter ? ' on' : '')} onClick={() => setCategoryFilter(null)}>
+                <span className="cat-icon"><IconSearch size={20} /></span>All
+              </button>
+              {CATEGORIES.map((c) => {
+                const Icon = CATEGORY_ICON[c];
+                const on = categoryFilter === c;
                 return (
-                  <article className="pcard" key={p.key}>
-                    <div className="pcard-media">
-                      <img src={productPhoto(p.key)} alt={p.name} />
-                      {p.prescriptionRequired && <span className="pcard-rx">Rx</span>}
-                    </div>
-                    <div className="pcard-body">
-                      <span className="pcard-tag">{FORM_TAG[p.form] || p.form}</span>
-                      <h3 className="pcard-name">{p.name} {p.strength}</h3>
-                      <p className="pcard-meta">{p.brand} · {p.packSize}</p>
-                      <div className="pcard-foot">
-                        <div className="pcard-price">
-                          {!market && <span className="pcard-avail">Checking prices…</span>}
-                          {market && price && (
-                            <>
-                              <span className="pcard-from">from</span> <strong>₹{price.from}</strong>
-                              <span className="pcard-avail"> · {price.count} {price.count > 1 ? 'pharmacies' : 'pharmacy'}</span>
-                            </>
-                          )}
-                          {market && !price && <span className="pcard-avail">We&apos;ll ask nearby pharmacies</span>}
-                        </div>
-                        {qty
-                          ? <Stepper qty={qty} label={p.name} onChange={(d) => changeCatalogQty(p, d)} />
-                          : <button type="button" className="pcard-add" onClick={() => changeCatalogQty(p, 1)} aria-label={`Add ${p.name} to cart`}>Add</button>}
-                      </div>
-                    </div>
-                  </article>
+                  <button key={c} type="button" className={'cat' + (on ? ' on' : '')} onClick={() => setCategoryFilter(on ? null : c)}>
+                    <span className="cat-icon"><Icon size={20} /></span>{c}
+                  </button>
                 );
               })}
             </div>
+            <div className="pgrid">
+              {products.map((p) => (
+                <ProductCard
+                  key={p.key}
+                  p={p}
+                  price={market?.prices?.[p.key]}
+                  qty={qtyOf(p.key)}
+                  onQty={(d) => changeCatalogQty(p, d)}
+                  onOpen={() => setSheetKey(p.key)}
+                />
+              ))}
+            </div>
           </section>
 
-          <section className="rx-banner">
-            <div className="rx-banner-icon"><IconShieldCheck size={26} /></div>
-            <div className="rx-banner-text">
-              <h3>Have a prescription? Just snap it.</h3>
-              <p>Our AI reads it in seconds. A licensed pharmacist checks it before anything is packed.</p>
+          <section className="rx-band">
+            <div className="rx-band-copy">
+              <span className="kicker kicker-inv">Have a prescription?</span>
+              <h2>Snap it. We&apos;ll do the rest.</h2>
+              <p>AI reads your prescription in seconds and fills your cart. A licensed pharmacist checks it before anything is packed.</p>
             </div>
-            <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}><IconUpload size={17} /> Upload prescription</button>
+            <button type="button" className="btn-lg btn-light" onClick={() => fileRef.current?.click()} disabled={busy}>
+              <IconUpload size={18} /> Upload prescription
+            </button>
+          </section>
+
+          <section className="section" id="how">
+            <div className="section-head"><h2>How PharmFetch works</h2></div>
+            <ol className="steps">
+              <li><span className="step-n">1</span><h3>Search or snap</h3><p>Type medicine names or upload a prescription. We read it and build your cart.</p></li>
+              <li><span className="step-n">2</span><h3>Compare pharmacies</h3><p>See live stock and the total price at every open pharmacy near you.</p></li>
+              <li><span className="step-n">3</span><h3>Track to your door</h3><p>The pharmacy packs it, a verified rider delivers it, you track every step.</p></li>
+            </ol>
           </section>
 
           <section className="section" id="pharmacies">
@@ -421,110 +633,148 @@ export default function Patient() {
                 <p className="muted">Licensed local chemists. Your order is packed by one of them, not a warehouse.</p>
               </div>
             </div>
-            <div className="pharm-grid">
+            <div className="ph-grid">
               {(market?.shops || []).map((s) => (
-                <article className="pharm-card" key={s.id}>
-                  <div className="pharm-head">
-                    <span className="avatar"><IconPharmacy size={18} /></span>
-                    <div className="pharm-title">
+                <article className="ph-card" key={s.id}>
+                  <div className="ph-head">
+                    <span className="avatar"><IconPharmacy size={20} /></span>
+                    <div className="ph-title">
                       <strong>{s.name}</strong>
                       <span className="muted">{s.distanceKm} km away</span>
                     </div>
                   </div>
-                  <div className="pharm-tags">
+                  <div className="ph-tags">
                     <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
-                    {s.verified && <span className="verify-badge">Verified</span>}
+                    {s.verified && <span className="pill info">Verified</span>}
                   </div>
-                  <ul className="pharm-meta">
-                    <li>{s.hours}</li>
-                    <li>{s.pharmacist ? `Pharmacist: ${s.pharmacist}` : 'Pharmacist details pending'}</li>
-                    <li>{s.inStockCount} medicines in stock</li>
-                  </ul>
+                  <dl className="ph-meta">
+                    <div><dt>Hours</dt><dd>{s.hours}</dd></div>
+                    <div><dt>Pharmacist</dt><dd>{s.pharmacist || 'Details pending'}</dd></div>
+                    <div><dt>In stock</dt><dd>{s.inStockCount} medicines</dd></div>
+                  </dl>
                 </article>
               ))}
             </div>
           </section>
 
-          <section className="why-strip">
-            {WHY_ITEMS.map(({ Icon, label, sub }) => (
-              <div className="why-item" key={label}>
-                <span className="why-icon"><Icon size={20} /></span>
-                <div><strong>{label}</strong><span>{sub}</span></div>
-              </div>
-            ))}
+          <section className="promise">
+            <div><span className="promise-icon"><IconPharmacy size={22} /></span><strong>Real pharmacies</strong><span>No dark stores. Every order is packed by a licensed chemist.</span></div>
+            <div><span className="promise-icon"><IconWallet size={22} /></span><strong>Compare before you pay</strong><span>See every nearby price and pick the best one.</span></div>
+            <div><span className="promise-icon"><IconShieldCheck size={22} /></span><strong>Pharmacist on every order</strong><span>Prescriptions are checked before packing.</span></div>
+            <div><span className="promise-icon"><IconBike size={22} /></span><strong>Tracked delivery</strong><span>Verified riders, live status from pharmacy to door.</span></div>
           </section>
         </>
       )}
 
       {stage === 'confirm' && (
-        <div className="page-narrow">
-          <section className="page-head">
-            <button type="button" className="back-link" onClick={() => goTo('input')}>← Continue shopping</button>
-            <h1 className="page-title">Your cart</h1>
-            <p className="muted">Next, we check which nearby pharmacies have these and at what price.</p>
-          </section>
+        <div className="page">
+          <button type="button" className="back-link" onClick={() => goTo('input')}>← Continue shopping</button>
+          <h1 className="page-title">Your cart</h1>
           {error && <div className="err">{error}</div>}
-          <div className="card">
-            {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
-            {meds.length === 0 && <p className="muted">Your cart is empty.</p>}
-            {meds.map((m, i) => {
-              return (
-                <div className="cart-row" key={i}>
-                  <img className="cart-thumb" src={productPhoto(m.key)} alt="" />
-                  <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value, key: undefined } : x)))} />
-                  <Stepper qty={m.qty || 1} label={m.name || 'item'} onChange={(d) => setQty(i, (m.qty || 1) + d)} />
-                  {m.confidence < 0.8 && <span className="pill wait">check</span>}
-                  <button type="button" className="icon-btn warn" aria-label={`Remove ${m.name || 'item'}`} onClick={() => setMeds(meds.filter((_, j) => j !== i))}><IconTrash size={16} /></button>
+          <div className="split">
+            <div className="panel">
+              {review && <div className="note">Some lines were hard to read. A pharmacist will check this before anything is handed over. Please fix any mistakes below.</div>}
+              {meds.length === 0 && (
+                <div className="empty">
+                  <p>Your cart is empty.</p>
+                  <button type="button" className="btn-lg" onClick={() => goTo('input')}>Browse medicines</button>
                 </div>
-              );
-            })}
-            <button type="button" className="link-btn" onClick={() => setMeds([...meds, { name: '', confidence: 1, qty: 1 }])}>+ Add another medicine</button>
-          </div>
-          <div className="page-actions">
-            <button type="button" onClick={compare} disabled={!meds.some((m) => m.name.trim())}>Compare pharmacy prices →</button>
+              )}
+              {meds.map((m, i) => {
+                const cat = m.key && catalogItem(m.key);
+                const price = m.key && market?.prices?.[m.key];
+                return (
+                  <div className="cart-row" key={i}>
+                    <img className="cart-thumb" src={productPhoto(m.key)} alt="" />
+                    <div className="cart-main">
+                      {cat
+                        ? <><strong>{cat.name} {cat.strength}</strong><span className="muted">{cat.packSize}{cat.prescriptionRequired ? ' · Rx' : ''}</span></>
+                        : <input type="text" value={m.name} aria-label={`Medicine ${i + 1}`} onChange={(e) => setMeds(meds.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />}
+                      {m.confidence < 0.8 && <span className="pill wait">Please check this name</span>}
+                    </div>
+                    <span className="cart-price">{price ? `from ₹${price.from * (m.qty || 1)}` : ''}</span>
+                    <Stepper qty={m.qty || 1} label={m.name || 'item'} onChange={(d) => setQty(i, (m.qty || 1) + d)} />
+                    <button type="button" className="icon-btn" aria-label={`Remove ${m.name || 'item'}`} onClick={() => setMeds(meds.filter((_, j) => j !== i))}><IconTrash size={17} /></button>
+                  </div>
+                );
+              })}
+              {meds.length > 0 && <button type="button" className="link-btn" onClick={() => setMeds([...meds, { name: '', confidence: 1, qty: 1 }])}>+ Add another medicine by name</button>}
+            </div>
+
+            <aside className="panel summary">
+              <h3>Summary</h3>
+              <dl className="sum">
+                <div><dt>Items</dt><dd>{count}</dd></div>
+                <div><dt>Estimated total</dt><dd>{priced.length ? `₹${estimate}` : '—'}</dd></div>
+              </dl>
+              <p className="fine">
+                Estimate uses the lowest live price for each item{unpriced > 0 ? `; ${unpriced} item${unpriced > 1 ? 's are' : ' is'} priced when pharmacies reply` : ''}. Your final price depends on the pharmacy you choose.
+              </p>
+              {rxInCart && !image && (
+                <div className="note note-row">
+                  <span>Some items need a prescription.</span>
+                  <button type="button" className="btn-sm" onClick={() => fileRef.current?.click()}><IconUpload size={15} /> Attach</button>
+                </div>
+              )}
+              {image && <p className="rx-attached"><IconCheck /> Prescription attached</p>}
+              <button type="button" className="btn-lg btn-block" onClick={compare} disabled={!meds.some((m) => m.name.trim())}>
+                Compare pharmacy prices →
+              </button>
+              <ul className="trust-list">
+                <li><IconCheck /> Pay the pharmacy or rider on delivery</li>
+                <li><IconCheck /> Licensed pharmacies only</li>
+              </ul>
+            </aside>
           </div>
         </div>
       )}
 
       {stage === 'results' && (
-        <div className="page-narrow">
-          <section className="page-head">
-            <button type="button" className="back-link" onClick={() => goTo('confirm')}>← Edit cart</button>
-            <h1 className="page-title">Compare pharmacies</h1>
-            <p className="muted">Live stock and prices from partner pharmacies near you. This page updates as pharmacies reply.</p>
-          </section>
+        <div className="page page-narrow">
+          <button type="button" className="back-link" onClick={() => goTo('confirm')}>← Edit cart</button>
+          <h1 className="page-title">Compare pharmacies</h1>
+          <p className="muted">Live stock and prices near you. This page updates as pharmacies reply.</p>
+          {bestShop && (
+            <div className="best-banner">
+              <div>
+                <span className="muted">Best price</span>
+                <strong>₹{lowest} at {bestShop.name}</strong>
+              </div>
+              {highest > lowest && <span className="save-pill">You save ₹{highest - lowest} vs the highest</span>}
+            </div>
+          )}
           {error && <div className="err">{error}</div>}
           {flags.blocked.length > 0 && <div className="err">Not sold through this app: {flags.blocked.join(', ')}. Please see a pharmacist in person.</div>}
           {flags.needsPrescription.length > 0 && (
             <div className="note note-row">
               <span>{flags.needsPrescription.join(', ')} {flags.needsPrescription.length > 1 ? 'need' : 'needs'} a prescription photo.</span>
-              <button type="button" className="ghost" onClick={() => fileRef.current?.click()}><IconUpload size={16} /> Attach prescription</button>
+              <button type="button" className="btn-sm" onClick={() => fileRef.current?.click()}><IconUpload size={15} /> Attach prescription</button>
             </div>
           )}
           {shops.map((s) => {
             const waiting = s.items.some((i) => i.status === 'unknown');
+            const isBest = s.open && s.allAvailable && s.total === lowest;
             return (
-              <div className={'card shop-card' + (s.open && s.allAvailable && s.total === lowest ? ' best' : '')} key={s.id}>
-                <div className="shop">
-                  <div className="row" style={{ marginBottom: 0 }}>
-                    <span className="avatar"><IconPharmacy size={18} /></span>
-                    <div>
-                      <strong>{s.name}</strong> {s.verified && <span className="verify-badge">Verified</span>}
-                      <div className="muted">{s.distanceKm} km away</div>
-                    </div>
+              <div className={'shop-card' + (isBest ? ' best' : '') + (!s.open ? ' dim' : '')} key={s.id}>
+                <div className="shop-top">
+                  <span className="avatar"><IconPharmacy size={20} /></span>
+                  <div className="shop-title">
+                    <strong>{s.name}</strong>
+                    <span className="muted">{s.distanceKm} km away{s.verified ? ' · Verified' : ''}</span>
                   </div>
                   <div className="shop-badges">
-                    <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
-                    {s.open && s.allAvailable && s.total === lowest && <span className="badge-best">Lowest price</span>}
+                    {isBest && <span className="badge-best">Lowest price</span>}
                     {s.id === nearestId && <span className="badge-near">Nearest</span>}
+                    <span className={'pill ' + (s.open ? 'ok' : 'bad')}>{s.open ? 'Open now' : 'Closed'}</span>
                   </div>
                 </div>
                 <ul className="items">
                   {s.items.map((i) => { const l = ITEM_LABEL[i.status](i); return <li key={i.key}><span>{i.display}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span className={'pill ' + l.cls}>{l.text}</span></li>; })}
                 </ul>
-                <div className="row" style={{ marginTop: 14, marginBottom: 0 }}>
-                  <button onClick={() => place(s)} disabled={busy || !s.open || !s.allAvailable}>
-                    {!s.open ? 'Closed right now' : s.allAvailable ? `Order from this pharmacy · ₹${s.total}` : waiting ? 'Waiting for the pharmacy to reply' : 'Not everything in stock'}
+                <div className="shop-foot">
+                  <span className="shop-total">{s.allAvailable ? <>Total <strong>₹{s.total}</strong></> : <span className="muted">Total shown once everything is confirmed</span>}</span>
+                  <button className={isBest ? 'btn-lg' : 'btn-lg btn-outline'} onClick={() => place(s)} disabled={busy || !s.open || !s.allAvailable}>
+                    {!s.open ? 'Closed right now' : s.allAvailable ? 'Order from here' : waiting ? 'Waiting for reply' : 'Not everything in stock'}
                   </button>
                 </div>
               </div>
@@ -533,13 +783,24 @@ export default function Patient() {
         </div>
       )}
 
+      {sheetProduct && (
+        <MedicineSheet
+          p={sheetProduct}
+          market={market}
+          qty={qtyOf(sheetProduct.key)}
+          onQty={(d) => changeCatalogQty(sheetProduct, d)}
+          info={infoCache[sheetProduct.key]}
+          onClose={() => setSheetKey(null)}
+        />
+      )}
+
       {(orders.length > 0 || showCartBar) && <div style={{ height: orders.length && showCartBar ? 160 : 90 }} aria-hidden="true" />}
 
       {showCartBar && (
         <div className={'cart-bar' + (orders.length ? ' raised' : '')}>
           <button type="button" className="cart-bar-summary" onClick={() => goTo('confirm')}>
-            <IconCart size={19} />
-            <span><strong>{cartCount} item{cartCount > 1 ? 's' : ''}</strong> in cart · View</span>
+            <span className="cart-bar-count">{count}</span>
+            <span>{count > 1 ? 'items' : 'item'} in cart{estimate ? ` · from ₹${estimate}` : ''}</span>
           </button>
           <button type="button" className="cart-bar-cta" onClick={compare}>Compare prices →</button>
         </div>
@@ -569,9 +830,9 @@ export default function Patient() {
                   <div className="order-bar-panel">
                     <div className="title-row">
                       <h2 style={{ margin: 0, fontSize: 16 }}>Your orders</h2>
-                      <div className="row" style={{ margin: 0 }}>
-                        <button className={lang === 'en' ? '' : 'ghost'} onClick={() => switchLang('en')}>English</button>
-                        <button className={lang === 'hi' ? '' : 'ghost'} onClick={() => switchLang('hi')}>हिन्दी</button>
+                      <div className="seg">
+                        <button className={lang === 'en' ? 'on' : ''} onClick={() => switchLang('en')}>English</button>
+                        <button className={lang === 'hi' ? 'on' : ''} onClick={() => switchLang('hi')}>हिन्दी</button>
                       </div>
                     </div>
                     {orders.map(({ order, info }) => {

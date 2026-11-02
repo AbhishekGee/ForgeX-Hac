@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Logo from './Logo.js';
-import { IconPin } from './icons.js';
+import { IconPin, IconSearch, IconCart } from './icons.js';
+import { loadCart, cartCount } from '../../lib/cart.js';
 
 const BUSINESS = [
   { href: '/pharmacy', label: 'Pharmacy console', sub: 'Stock, orders and prescriptions' },
@@ -9,10 +10,21 @@ const BUSINESS = [
   { href: '/admin', label: 'Admin', sub: 'Marketplace overview' },
 ];
 
+const onStore = () => window.location.pathname === '/';
+
 export default function NavBar() {
-  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [count, setCount] = useState(0);
   const [biz, setBiz] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const bizRef = useRef(null);
+
+  useEffect(() => {
+    setCount(cartCount(loadCart()));
+    const onCart = (e) => setCount(cartCount(e.detail || []));
+    window.addEventListener('pf:cart', onCart);
+    return () => window.removeEventListener('pf:cart', onCart);
+  }, []);
 
   useEffect(() => {
     if (!biz) return;
@@ -21,30 +33,57 @@ export default function NavBar() {
     return () => document.removeEventListener('mousedown', close);
   }, [biz]);
 
+  function submit(e) {
+    e.preventDefault();
+    const text = q.trim();
+    if (!text) return;
+    setQ('');
+    if (onStore()) window.dispatchEvent(new CustomEvent('pf:search', { detail: text }));
+    else window.location.href = '/?q=' + encodeURIComponent(text);
+  }
+
+  function openCart() {
+    if (onStore()) window.dispatchEvent(new CustomEvent('pf:open-cart'));
+    else window.location.href = '/?cart=1';
+  }
+
   return (
-    <header className="nav">
-      <div className="nav-inner">
+    <header className="hdr">
+      <div className="hdr-row">
         <a href="/" className="brand" aria-label="PharmFetch — home" title="PharmFetch">
-          <span className="brand-mark" aria-hidden="true"><Logo size={30} /></span>
-          <span className="brand-word" aria-hidden="true"><span>P</span><b>F</b></span>
+          <Logo size={34} />
+          <span className="brand-word" aria-hidden="true">P<b>F</b></span>
         </a>
-        <div className="nav-location">
+
+        <div className="hdr-loc" title="Prices and distances are shown for this area">
           <IconPin size={18} />
-          <div>
-            <span className="nav-location-label">Delivering to</span>
+          <span>
+            <small>Delivering to</small>
             <strong>Connaught Place, New Delhi</strong>
-          </div>
+          </span>
         </div>
-        <nav className="nav-links">
-          <a href="/" className="nav-link">Shop</a>
-          <div className="nav-biz" ref={bizRef}>
-            <button type="button" className="nav-link nav-biz-btn" aria-expanded={biz} onClick={() => setBiz(!biz)}>
+
+        <form className="hdr-search" onSubmit={submit} role="search">
+          <IconSearch size={19} />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search medicines, e.g. Dolo 650, ORS"
+            aria-label="Search medicines"
+          />
+          <button type="submit" className="hdr-search-btn" disabled={!q.trim()}>Search</button>
+        </form>
+
+        <div className="hdr-actions">
+          <div className="hdr-biz" ref={bizRef}>
+            <button type="button" className="hdr-link" aria-expanded={biz} onClick={() => setBiz(!biz)}>
               For business <span aria-hidden="true">▾</span>
             </button>
             {biz && (
-              <div className="nav-menu">
+              <div className="menu">
                 {BUSINESS.map((l) => (
-                  <a key={l.href} href={l.href} className="nav-menu-item">
+                  <a key={l.href} href={l.href} className="menu-item">
                     <strong>{l.label}</strong>
                     <span>{l.sub}</span>
                   </a>
@@ -52,18 +91,23 @@ export default function NavBar() {
               </div>
             )}
           </div>
-        </nav>
-        <button type="button" className="nav-toggle" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <span />
-          <span />
-          <span />
-        </button>
+          <button type="button" className="hdr-cart" onClick={openCart} aria-label={`Cart, ${count} items`}>
+            <IconCart size={20} />
+            <span className="hdr-cart-label">Cart</span>
+            {count > 0 && <span className="hdr-badge">{count}</span>}
+          </button>
+          <button type="button" className="hdr-menu" aria-label="Menu" aria-expanded={sheet} onClick={() => setSheet(!sheet)}>
+            <span /><span /><span />
+          </button>
+        </div>
       </div>
-      {open && (
-        <nav className="nav-sheet">
-          <a href="/" className="nav-sheet-link" onClick={() => setOpen(false)}>Shop</a>
-          <span className="nav-sheet-label">For business</span>
-          {BUSINESS.map((l) => <a key={l.href} href={l.href} className="nav-sheet-link" onClick={() => setOpen(false)}>{l.label}</a>)}
+
+      {sheet && (
+        <nav className="sheet">
+          <a href="/" className="sheet-link">Shop medicines</a>
+          <a href="/#pharmacies" className="sheet-link" onClick={() => setSheet(false)}>Partner pharmacies</a>
+          <span className="sheet-label">For business</span>
+          {BUSINESS.map((l) => <a key={l.href} href={l.href} className="sheet-link">{l.label}</a>)}
         </nav>
       )}
     </header>
